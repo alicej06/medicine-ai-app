@@ -1,15 +1,25 @@
+# Python
 .venv/
 __pycache__/
 *.pyc
+
+# Node
 apps/web/node_modules/
+
+# AI Models
 *.bin
 *.pt
 *.safetensors
 models/
 sentence-transformers/
 huggingface/
+
+# Data
 data/
 datasets/
+
+# IDE & OS
 .vscode/
 .idea/
 .DS_Store
+
