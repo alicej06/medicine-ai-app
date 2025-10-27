@@ -1,0 +1,15 @@
+.venv/
+__pycache__/
+*.pyc
+apps/web/node_modules/
+*.bin
+*.pt
+*.safetensors
+models/
+sentence-transformers/
+huggingface/
+data/
+datasets/
+.vscode/
+.idea/
+.DS_Store
