@@ -3,17 +3,20 @@
 # output: 384 dim vector
 
 from typing import List
-import numpy as np 
-from sentence_transformers import SentenceTransformer 
+from functools import lru_cache
+import numpy as np
 
-_model = None
-def get_model() -> SentenceTransformer:
-    global _model
-    if _model is None:
-        _model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-    return _model
+@lru_cache(maxsize=1)
+def _model():
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
 
-def embed_texts(texts: List[str]) ->np.ndarray:
-    model = get_model()
-    vecs = model.encode(texts, convert_to_numpy=True, normalize_embeddings = True)
-    return vecs.astype("float32")
+def embed_text(text: str) -> List[float]:
+    m = _model()
+    v = m.encode([text], normalize_embeddings=True)[0]  
+    return v.astype(np.float32).tolist()
+
+def embed_texts(texts: List[str]) -> List[List[float]]:
+    m = _model()
+    M = m.encode(texts, normalize_embeddings=True)    
+    return M.astype(np.float32).tolist()

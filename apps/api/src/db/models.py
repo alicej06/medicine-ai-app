@@ -9,7 +9,7 @@ from sqlalchemy import Integer, String, DateTime, Text, func
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base
+from src.db.base import Base
 class Drug(Base):
     __tablename__ = "drug"
 
