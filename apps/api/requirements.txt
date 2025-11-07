@@ -1,5 +1,34 @@
-google-generativeai>=0.7.2
+# --- Core Framework ---
+fastapi
+uvicorn
+
+# --- Database & ORM ---
+sqlalchemy
+psycopg[binary]          # PostgreSQL driver (modern Psycopg3)
+# psycopg2-binary         # (optional alternative if your code imports psycopg2)
+
+# --- Data & Validation ---
+pydantic
+pydantic-settings
+numpy
+
+# --- Environment & Config ---
+python-dotenv
+
+# --- HTTP Requests / APIs ---
+requests
+
+# --- Async Support (if used) ---
+aiosqlite
+asyncpg
+
+# --- Optional Tools (for development / testing) ---
+pytest
+httpx
+
+# --- AI / ML & NLP ---
+torch>=2.4.0
 transformers>=4.44.0
 accelerate>=0.33.0
-torch>=2.4.0sentence-transformers
-google-generativeai
+sentence-transformers
+google-generativeai>=0.7.2
