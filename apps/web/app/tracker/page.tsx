@@ -1,10 +1,10 @@
-// app/interactions/page.tsx
+// app/tracker/page.tsx
 
 'use client';
 
 import Link from 'next/link';
 
-export default function InteractionsPage() {
+export default function TrackerPage() {
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#1a4b5c] to-[#2d7a7a]">
       <div className="container mx-auto px-4 py-12">
@@ -20,13 +20,13 @@ export default function InteractionsPage() {
 
         <div className="text-center py-20">
           <h1 className="text-5xl font-bold text-white mb-4">
-            Drug Interaction Checker
+            Drug Tracker
           </h1>
           <p className="text-cyan-200 text-xl mb-8">
             Coming Soon
           </p>
           <p className="text-cyan-300/70">
-            Check for interactions between multiple medications
+            Track your medication schedule and history
           </p>
         </div>
       </div>
