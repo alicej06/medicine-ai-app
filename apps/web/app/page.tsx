@@ -2,6 +2,11 @@
 
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import { getDrugById, getExplanation } from '@/lib/api';
+import { Drug, Explanation } from '@/lib/types';
+import CurrentPrescriptions from '@/components/CurrentPrescriptions';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -92,6 +97,24 @@ export default function LandingPage() {
           </div>
         </div>
 
+        {/* Disclaimer */}
+        <div className="mt-8 p-4 bg-gray-100 border border-gray-300 rounded-lg">
+          <p className="text-sm text-gray-600 text-center">
+            ⚕️ <span className="font-semibold">Medical Disclaimer:</span> This information is for educational purposes only. 
+            Always consult with a healthcare professional before starting or changing any medication.
+          </p>
+        </div>
+      </div>// apps/web/src/app/page.tsx
+
+import CurrentPrescriptions from '@/components/CurrentPrescriptions';
+
+export default function HomePage() {
+  return (
+    <main>
+      <CurrentPrescriptions />
+    </main>
+  );
+}
         {/* Footer */}
         <footer className="pb-10 px-10 md:px-20 lg:px-28">
           <a 
