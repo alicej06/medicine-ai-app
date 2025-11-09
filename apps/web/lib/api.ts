@@ -72,7 +72,14 @@ export async function getDrugById(rxCui: string): Promise<Drug> {
 
 export async function getExplanation(drugId: string): Promise<Explanation> {
   try {
-    const res = await fetch(`${API_BASE}/explain?drug_id=${drugId}`);
+    // Change this whole fetch call
+    const res = await fetch(`${API_BASE}/explain`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ drugId: drugId }),
+    });
     
     if (!res.ok) {
       throw new Error(`Explanation failed: ${res.status}`);
