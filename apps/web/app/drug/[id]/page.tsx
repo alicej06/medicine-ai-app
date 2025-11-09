@@ -288,3 +288,226 @@ export default function DrugDetailPage() {
     </main>
   );
 }
+
+'use client'; // This page must be a Client Component to use hooks
+
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
+import Link from 'next/link';
+
+
+interface Citation {
+  section: string;
+  snippet: string;
+}
+
+interface ExplanationData {
+  drugName: string;
+  drugId: string;
+  summaryBullets: string[];
+  citations: Citation[];
+}
+
+export default function ExplainPage() {
+  const params = useParams();
+  const drugId = params.drugId as string; // Get drugId from the URL
+
+
+  const [data, setData] = useState<ExplanationData | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    if (!drugId) return;
+
+    const fetchExplanation = async () => {
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const response = await fetch('http://localhost:8000/explain', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ drugId: drugId }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch data: ${response.statusText}`);
+        }
+
+        const result: ExplanationData = await response.json();
+        setData(result);
+      } catch (err: any) {
+        setError(err.message || 'An unknown error occurred.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchExplanation();
+  }, [drugId]); 
+
+ 
+  if (isLoading) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  
+  if (error) {
+    return (
+      <div className="flex flex-col justify-center items-center min-h-screen text-center">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md">
+          <strong className="font-bold">Error:</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
+        <Link
+          href="/"
+          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Back to Search
+        </Link>
+      </div>
+    );
+  }
+
+  
+  if (!data) {
+    return null; 
+  }
+
+  return (
+    <main className="max-w-3xl mx-auto p-4 md:p-8">
+      {/* Drug Name & ID */}
+      <h1 className="text-3xl font-bold mb-2">{data.drugName}</h1>
+      <p className="text-sm text-gray-500 mb-6">Drug ID (RxCUI): {data.drugId}</p>
+
+      {/* AI Summary Bullets */}
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Summary</h2>
+        <ul className="list-disc pl-6 space-y-2 text-gray-800">
+          {data.summaryBullets.map((bullet, index) => (
+            <li key={index}>{bullet}</li>
+          ))}
+        </ul>
+      </div>
+
+      <hr className="my-8" />
+
+      {/* Sources / Citations */}
+      <div>
+        <h2 className="text-2xl font-semibold mb-4">Sources</h2>
+        <div className="space-y-6">
+          {data.citations.map((citation, index) => (
+            <div
+              key={index}
+              className="bg-gray-50 border border-gray-200 p-4 rounded-lg"
+            >
+              <h3 className="font-semibold text-gray-800 mb-1">
+                From: {citation.section}
+              </h3>
+              <blockquote className="border-l-4 border-gray-400 pl-4 text-gray-600 italic">
+                "{citation.snippet}"
+              </blockquote>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Disclaimer */}
+      <p className="text-sm italic text-gray-500 mt-12 text-center">
+        **Disclaimer:** This tool is for informational purposes only and is not
+        a substitute for professional medical advice, diagnosis, or treatment.
+        Always consult your healthcare provider.
+      </p>
+    </main>
+  );
+}
+
+'use client'; 
+
+import { useState } from 'react';
+import Link from 'next/link'; 
+
+
+interface DrugSearchResult {
+  rx_cui: string;
+  generic_name: string;
+  brand_names: string[];
+}
+
+export default function SearchPage() {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<DrugSearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    setResults([
+      {
+        rx_cui: '5468',
+        generic_name: 'Ibuprofen',
+        brand_names: ['Advil', 'Motrin'],
+      },
+      {
+        rx_cui: '11529',
+        generic_name: 'Warfarin',
+        brand_names: ['Coumadin', 'Jantoven'],
+      },
+    ]);
+    setIsLoading(false);
+  };
+
+  return (
+    <main className="max-w-xl mx-auto p-4 md:p-8">
+      <h1 className="text-3xl font-bold text-center mb-6">
+        Medicine Explainer
+      </h1>
+      
+      {/* Search Form */}
+      <form onSubmit={handleSearch} className="flex gap-2 mb-6">
+        <input
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search for a drug (e.g., 'ibuprofen')"
+          className="flex-grow p-2 border border-gray-300 rounded-md"
+        />
+        <button
+          type="submit"
+          disabled={isLoading}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md disabled:bg-gray-400"
+        >
+          {isLoading ? 'Searching...' : 'Search'}
+        </button>
+      </form>
+
+      {/* --- This is the new part: Linking to the explain page --- */}
+      <div className="space-y-3">
+        {results.map((drug) => (
+          <Link
+            key={drug.rx_cui}
+            href={`/explain/${drug.rx_cui}`}
+            className="block p-4 border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"
+          >
+            <h3 className="font-semibold text-lg text-blue-700">
+              {drug.generic_name}
+            </h3>
+            <p className="text-sm text-gray-600">
+              {drug.brand_names?.join(', ')}
+            </p>
+          </Link>
+        ))}
+      </div>
+    </main>
+  );
+}
