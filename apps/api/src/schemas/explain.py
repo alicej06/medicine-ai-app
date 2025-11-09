@@ -7,6 +7,7 @@ class Citation(BaseModel):
     section: Optional[str] = None
     source_url: Optional[str] = None
     snippet: str
+    used: bool = False
 
 class ExplainRequest(BaseModel):
     drugId: str
@@ -17,4 +18,5 @@ class ExplainResponse(BaseModel):
     question: Optional[str] = None
     summary: List[str]
     citations: List[Citation]
+    usedCitationIds: List[int] = []
     disclaimer: str = "Educational use only. Not medical advice."

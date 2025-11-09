@@ -76,11 +76,13 @@ def bulk_insert(chunks: Iterable[Dict], dedup: bool = True) -> int:
     return len(batch)
 
 def ensure_ivfflat_index(lists: int = 100) -> None:
+    lists_val = int(lists)
+    sql = text(f"""
+        CREATE INDEX IF NOT EXISTS label_chunk_emb_idx
+        ON label_chunk USING ivfflat (emb vector_l2_ops) WITH (lists = {lists_val})
+    """)
     with get_session() as s:
-        s.execute(text("""
-            CREATE INDEX IF NOT EXISTS label_chunk_emb_idx
-            ON label_chunk USING ivfflat (emb vector_l2_ops) WITH (lists = :lists)
-        """), {"lists": lists})
+        s.execute(sql)
         s.commit()
 
 
