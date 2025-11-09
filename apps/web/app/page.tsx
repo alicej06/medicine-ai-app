@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { getDrugById, getExplanation } from '@/lib/api';
 import { Drug, Explanation } from '@/lib/types';
+import CurrentPrescriptions from '@/components/CurrentPrescriptions';
 
 export default function DrugDetailPage() {
   const params = useParams();
@@ -284,7 +285,17 @@ export default function DrugDetailPage() {
             Always consult with a healthcare professional before starting or changing any medication.
           </p>
         </div>
-      </div>
+      </div>// apps/web/src/app/page.tsx
+
+import CurrentPrescriptions from '@/components/CurrentPrescriptions';
+
+export default function HomePage() {
+  return (
+    <main>
+      <CurrentPrescriptions />
+    </main>
+  );
+}
     </main>
   );
 }
