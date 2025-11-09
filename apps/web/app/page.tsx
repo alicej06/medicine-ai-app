@@ -1,4 +1,4 @@
-// app/drug/[id]/page.tsx
+// app/page.tsx
 
 'use client';
 
@@ -7,275 +7,94 @@ import { useParams, useRouter } from 'next/navigation';
 import { getDrugById, getExplanation } from '@/lib/api';
 import { Drug, Explanation } from '@/lib/types';
 import CurrentPrescriptions from '@/components/CurrentPrescriptions';
+import Link from 'next/link';
+import { useState } from 'react';
 
-export default function DrugDetailPage() {
-  const params = useParams();
-  const router = useRouter();
-  const drugId = params.id as string;
+export default function LandingPage() {
+  const [hoveredButton, setHoveredButton] = useState<string | null>(null);
 
-  const [drug, setDrug] = useState<Drug | null>(null);
-  const [explanation, setExplanation] = useState<Explanation | null>(null);
-  const [isLoadingDrug, setIsLoadingDrug] = useState(true);
-  const [isLoadingExplanation, setIsLoadingExplanation] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function loadDrug() {
-      try {
-        const drugData = await getDrugById(drugId);
-        setDrug(drugData);
-      } catch (err) {
-        setError('Drug not found');
-        console.error('Drug fetch error:', err);
-      } finally {
-        setIsLoadingDrug(false);
-      }
-    }
-
-    async function loadExplanation() {
-      try {
-        const explainData = await getExplanation(drugId);
-        setExplanation(explainData);
-      } catch (err) {
-        console.error('Explanation error:', err);
-        // Don't set error - explanation is optional
-      } finally {
-        setIsLoadingExplanation(false);
-      }
-    }
-
-    loadDrug();
-    loadExplanation();
-  }, [drugId]);
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center max-w-md">
-          <div className="text-6xl mb-4">😕</div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">Drug Not Found</h1>
-          <p className="text-gray-600 mb-6">
-            We couldn't find information for this drug. It may not be in our database yet.
-          </p>
-          <button
-            onClick={() => router.push('/')}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            ← Back to Search
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoadingDrug) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading drug information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!drug) return null;
+  const buttons = [
+    { id: 'interaction', label: 'DRUG INTERACTION', href: '/interactions' },
+    { id: 'tracker', label: 'DRUG TRACKER', href: '/tracker' },
+    { id: 'info', label: 'DRUG INFO', href: '/search' },
+    { id: 'signup', label: 'SIGN UP', href: '/signup' }
+  ];
 
   return (
-    <main className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
-      <div className="container mx-auto px-4 py-8 max-w-5xl">
-        {/* Back Button */}
-        <button
-          onClick={() => router.push('/')}
-          className="mb-6 text-blue-600 hover:text-blue-800 flex items-center gap-2 font-medium transition-colors"
-        >
-          <span>←</span> Back to Search
-        </button>
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Exact Gradient Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
+        <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
+      </div>
 
-        {/* Drug Header Card */}
-        <div className="bg-white rounded-xl shadow-lg p-8 mb-6 border border-gray-100">
-          <div className="flex items-start gap-4 mb-6">
-            <div className="text-5xl">💊</div>
-            <div className="flex-1">
-              <h1 className="text-4xl font-bold text-gray-900 mb-2 capitalize">
-                {drug.generic_name}
+      {/* Content Container */}
+      <div className="relative z-10 min-h-screen flex flex-col">
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col items-start justify-center px-10 md:px-20 lg:px-28 py-16">
+          {/* Logo & Title Section */}
+          <div className="mb-20">
+            <div className="flex items-center gap-5 mb-3">
+              {/* PHAIRM Logo */}
+              <img 
+                src="/phairm-logo.png" 
+                alt="PHAIRM Logo"
+                className="w-[120px] h-[120px] object-contain"
+              />
+              
+              <h1 className="text-[6.5rem] leading-none font-bold text-white tracking-[0.02em] -ml-1">
+                PHAIRM
               </h1>
-              <p className="text-gray-500">RX CUI: {drug.rx_cui}</p>
             </div>
+            
+            <p className="text-[#A0E7DD] text-[15px] tracking-[0.25em] uppercase font-light pl-1">
+              MEDICINE INTERACTION CHECKER
+            </p>
           </div>
 
-          {/* Brand Names */}
-          {drug.brand_names && drug.brand_names.length > 0 && (
-            <div className="mb-6">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Brand Names
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {drug.brand_names.map((brand, idx) => (
-                  <span
-                    key={idx}
-                    className="px-4 py-2 bg-blue-50 text-blue-800 rounded-full text-sm font-medium border border-blue-200"
-                  >
-                    {brand}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Synonyms */}
-          {drug.synonyms && drug.synonyms.length > 0 && (
-            <div className="mb-6">
-              <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-                Also Known As
-              </h2>
-              <div className="flex flex-wrap gap-2">
-                {drug.synonyms.slice(0, 10).map((synonym, idx) => (
-                  <span
-                    key={idx}
-                    className="px-3 py-1 bg-gray-100 text-gray-700 rounded text-sm"
-                  >
-                    {synonym}
-                  </span>
-                ))}
-                {drug.synonyms.length > 10 && (
-                  <span className="px-3 py-1 text-sm text-gray-500">
-                    +{drug.synonyms.length - 10} more
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Metadata Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-gray-200">
-            {drug.drug_class && (
-              <div>
-                <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                  Drug Class
-                </span>
-                <p className="text-gray-900 text-lg">{drug.drug_class}</p>
-              </div>
-            )}
-            {drug.atc_code && (
-              <div>
-                <span className="text-sm font-semibold text-gray-700 uppercase tracking-wide block mb-1">
-                  ATC Code
-                </span>
-                <p className="text-gray-900 text-lg font-mono">{drug.atc_code}</p>
-              </div>
-            )}
+          {/* Button Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 w-full max-w-[620px]">
+            {buttons.map((button) => (
+              <Link
+                key={button.id}
+                href={button.href}
+                onMouseEnter={() => setHoveredButton(button.id)}
+                onMouseLeave={() => setHoveredButton(null)}
+                className="group relative"
+              >
+                <div className={`
+                  border border-[#4DD4C0]/50
+                  bg-transparent
+                  px-7 py-[22px]
+                  rounded-md
+                  transition-all duration-200
+                  hover:border-[#4DD4C0]/80
+                  hover:bg-[#1E5A6B]/20
+                  hover:shadow-[0_0_20px_rgba(77,212,192,0.15)]
+                  hover:translate-x-[2px]
+                  ${hoveredButton === button.id ? 'border-[#4DD4C0]/80 bg-[#1E5A6B]/20' : ''}
+                `}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[#C5F5ED] text-[17px] font-normal tracking-[0.15em] uppercase">
+                      {button.label}
+                    </span>
+                    <svg 
+                      className={`
+                        w-[18px] h-[18px] text-[#4DD4C0]
+                        transition-transform duration-200
+                        ${hoveredButton === button.id ? 'translate-x-[3px]' : ''}
+                      `}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                      strokeWidth="2.5"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  </div>
+                </div>
+              </Link>
+            ))}
           </div>
-        </div>
-
-        {/* AI Explanation Section */}
-        <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
-          <div className="flex items-center gap-3 mb-6">
-            <span className="text-3xl">🤖</span>
-            <h2 className="text-3xl font-bold text-gray-900">
-              Simple Explanation
-            </h2>
-          </div>
-
-          {isLoadingExplanation ? (
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <div className="h-6 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-5/6 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-4/5 animate-pulse"></div>
-              </div>
-              <div className="space-y-3">
-                <div className="h-6 bg-gray-200 rounded w-1/4 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-full animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
-              </div>
-            </div>
-          ) : explanation ? (
-            <div className="space-y-8">
-              {/* Purpose */}
-              {explanation.purpose && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span className="text-2xl">🎯</span>
-                    What it's used for
-                  </h3>
-                  <p className="text-gray-700 text-lg leading-relaxed">
-                    {explanation.purpose}
-                  </p>
-                </div>
-              )}
-
-              {/* Mechanism */}
-              {explanation.mechanism && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-3 flex items-center gap-2">
-                    <span className="text-2xl">⚙️</span>
-                    How it works
-                  </h3>
-                  <p className="text-gray-700 text-lg leading-relaxed">
-                    {explanation.mechanism}
-                  </p>
-                </div>
-              )}
-
-              {/* Warnings */}
-              {explanation.warnings && explanation.warnings.length > 0 && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-6 rounded-r-lg">
-                  <h3 className="text-xl font-semibold text-red-900 mb-4 flex items-center gap-2">
-                    <span className="text-2xl">⚠️</span>
-                    Important Warnings
-                  </h3>
-                  <ul className="space-y-2">
-                    {explanation.warnings.map((warning, idx) => (
-                      <li key={idx} className="text-gray-800 flex items-start gap-2">
-                        <span className="text-red-600 mt-1">•</span>
-                        <span>{warning}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Side Effects */}
-              {explanation.side_effects && explanation.side_effects.length > 0 && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-500 p-6 rounded-r-lg">
-                  <h3 className="text-xl font-semibold text-yellow-900 mb-4 flex items-center gap-2">
-                    <span className="text-2xl">🩹</span>
-                    Common Side Effects
-                  </h3>
-                  <ul className="space-y-2">
-                    {explanation.side_effects.map((effect, idx) => (
-                      <li key={idx} className="text-gray-800 flex items-start gap-2">
-                        <span className="text-yellow-600 mt-1">•</span>
-                        <span>{effect}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Sources */}
-              {explanation.sources && explanation.sources.length > 0 && (
-                <div className="pt-6 border-t border-gray-200">
-                  <p className="text-sm text-gray-500">
-                    <span className="font-medium">Sources:</span>{' '}
-                    {explanation.sources.join(', ')}
-                  </p>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <div className="text-5xl mb-4">📚</div>
-              <p className="text-gray-500 text-lg">
-                AI explanation not available for this drug yet.
-              </p>
-              <p className="text-gray-400 text-sm mt-2">
-                Check back later as we continue to expand our database.
-              </p>
-            </div>
-          )}
         </div>
 
         {/* Disclaimer */}
@@ -296,6 +115,27 @@ export default function HomePage() {
     </main>
   );
 }
+        {/* Footer */}
+        <footer className="pb-10 px-10 md:px-20 lg:px-28">
+          <a 
+            href="https://instagram.com/phairm_maia_biotech" 
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 text-[#4DD4C0]/70 hover:text-[#4DD4C0] transition-colors group"
+          >
+            <svg 
+              className="w-[22px] h-[22px]" 
+              fill="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+            </svg>
+            <span className="text-[15px] group-hover:underline">
+              phairm_maia_biotech
+            </span>
+          </a>
+        </footer>
+      </div>
     </main>
   );
 }

@@ -1,17 +1,21 @@
+# apps/api/src/services/llm/explainer.py
 import os, json, re
 from typing import List, Dict
 
-LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini")
+LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")  # default to 2.5
+HF_MODEL = os.getenv("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
 
 SYSTEM = """You are a medical explanation assistant for consumers.
 Requirements:
 - Explain in plain language at ~8th-grade level.
-- Summarize *only* from the provided CONTEXT; if unknown, say so.
+- Summarize ONLY from the provided CONTEXT; if unknown, say so.
 - Output 4–6 concise bullets.
-- Add short cautionary bullet if applicable.
-- Never give medical advice or dosing instructions; use the disclaimer tone.
+- Add a brief cautionary bullet if applicable.
+- Never give medical advice or dosing instructions; use a disclaimer tone.
 - No hallucinations. If evidence is weak, say "uncertain".
-- Return strict JSON with keys: bullets[], used_citation_ids[]
+- Return strict JSON with keys: bullets[], used_citation_ids[].
 """
 
 USER_TEMPLATE = """DRUG: {drug}
@@ -23,8 +27,10 @@ CONTEXT (citations):
 INSTRUCTIONS:
 - Use context verbatim for facts; do not invent.
 - Refer to citations by [C{{i}}] indices (we will map them).
-- Return JSON: {{"bullets": string[], "used_citation_ids": number[]}}
+- Return JSON: {{"bullets": string[], "used_citation_ids": number[]}} ONLY.
 """
+
+_JSON_BLOCK = re.compile(r"\{[\s\S]*\}")
 
 def _build_context(citations: List[Dict]) -> str:
     lines = []
@@ -32,75 +38,167 @@ def _build_context(citations: List[Dict]) -> str:
         snippet = (c.get("snippet") or "").replace("\n", " ").strip()
         section = c.get("section") or "unknown"
         rx = c.get("rx_cui") or "n/a"
-        lines.append(f"[C{c['id']}] ({section}, rx_cui={rx}): {snippet}")
+        cid = c.get("id") or 0
+        lines.append(f"[C{cid}] ({section}, rx_cui={rx}): {snippet}")
     return "\n".join(lines)
 
 def _postprocess_json(text: str) -> Dict:
-    try:
-        data = json.loads(text)
-    except Exception:
-        m = re.search(r"\{.*\}", text, re.S)
-        data = json.loads(m.group(0)) if m else {}
-    bullets = (data.get("bullets") or [])[:6]
-    used = [i for i in (data.get("used_citation_ids") or []) if isinstance(i, int)]
+    data: Dict = {}
+    if text:
+        try:
+            data = json.loads(text)
+        except Exception:
+            m = _JSON_BLOCK.search(text)
+            if m:
+                try:
+                    data = json.loads(m.group(0))
+                except Exception:
+                    data = {}
+    bullets = [str(b).strip() for b in (data.get("bullets") or [])][:6]
+    used_raw = data.get("used_citation_ids") or data.get("usedIds") or []
+    used: List[int] = []
+    for i in used_raw:
+        if isinstance(i, bool):
+            continue
+        try:
+            used.append(int(i))
+        except Exception:
+            continue
+    # dedupe preserving order
+    seen = set()
+    used = [u for u in used if not (u in seen or seen.add(u))]
     return {"bullets": bullets, "used_ids": used}
 
-def explain_with_llm(drug: str, question: str, citations: List[Dict]) -> Dict:
-    ctx = _build_context(citations)
-    user = USER_TEMPLATE.format(
-        drug=drug,
-        question=question or "key facts and warnings",
-        context=ctx
-    )
+# ---------------- Gemini branch ----------------
 
-    if LLM_PROVIDER == "gemini":
+_genai_models_cache: Dict[str, object] = {}
+
+def _gemini_generate(prompt: str) -> Dict:
+    if not GEMINI_API_KEY:
+        return {"bullets": ["Gemini API key not configured."], "used_ids": []}
+
+    try:
         import google.generativeai as genai
-        api_key = os.getenv("GEMINI_API_KEY")
-        if not api_key:
-            return {"bullets": ["Gemini API key not configured."], "used_ids": []}
+    except Exception as e:
+        return {"bullets": [f"Gemini SDK not installed: {e}"], "used_ids": []}
 
-        genai.configure(api_key=api_key)
-        model_name = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    genai.configure(api_key=GEMINI_API_KEY)
 
-        model = genai.GenerativeModel(
-            model_name,
-            generation_config={
-                "response_mime_type": "application/json",
-                "temperature": 0.2,
-                "max_output_tokens": 450,
-            },
-            system_instruction=SYSTEM,
-        )
+    # Prefer 2.5 models; try your configured one first
+    candidates = [
+        GEMINI_MODEL,                 # from .env
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-flash-latest",
+        "gemini-pro-latest",
+    ]
+    # remove blanks and keep order without duplicates
+    seen = set()
+    ordered = []
+    for m in candidates:
+        if m and m not in seen:
+            seen.add(m)
+            ordered.append(m)
 
-        prompt = user + '\n\nReturn ONLY valid JSON like: {"bullets": ["..."], "used_citation_ids": [1,2]}'
-        resp = model.generate_content([prompt])
-        text = getattr(resp, "text", "") or ""
-        return _postprocess_json(text)
+    last_err = None
+    tried: List[str] = []
 
-    # Hugging Face fallback (offline)
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    import torch
-    model_id = os.getenv("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
-    tok = AutoTokenizer.from_pretrained(model_id)
+    for model_name in ordered:
+        tried.append(model_name)
+        try:
+            # cache model objects per name
+            model = _genai_models_cache.get(model_name)
+            if model is None:
+                model = genai.GenerativeModel(
+                    model_name,
+                    generation_config={
+                        "response_mime_type": "application/json",
+                        "temperature": 0.2,
+                        "max_output_tokens": 450,
+                    },
+                    system_instruction=SYSTEM,
+                )
+                _genai_models_cache[model_name] = model
+
+            req = (
+                # Single-part prompt is fine; JSON mode is set above
+                prompt
+            )
+            resp = model.generate_content([req])
+            text = getattr(resp, "text", "") or ""
+            if not text and getattr(resp, "candidates", None):
+                # try to recover text from candidates if present
+                for cand in resp.candidates:
+                    content = getattr(cand, "content", None)
+                    parts = getattr(content, "parts", None) if content else None
+                    if parts:
+                        for p in parts:
+                            if getattr(p, "text", None):
+                                text = p.text
+                                break
+                        if text:
+                            break
+            if not text:
+                # try next model
+                last_err = RuntimeError("Empty response body")
+                continue
+
+            return _postprocess_json(text)
+
+        except Exception as e:
+            # try next model
+            last_err = e
+            continue
+
+    msg = f"Gemini error after trying {tried}: {type(last_err).__name__}: {str(last_err)}" if last_err else \
+          f"Gemini error: no usable model from candidates {ordered}"
+    return {"bullets": [msg], "used_ids": []}
+
+# ---------------- HF fallback ----------------
+
+def _hf_generate(prompt: str) -> Dict:
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        import torch
+    except Exception:
+        return {
+            "bullets": ["LLM provider not available. Set LLM_PROVIDER=gemini or install transformers."],
+            "used_ids": [],
+        }
+
+    tok = AutoTokenizer.from_pretrained(HF_MODEL)
     model = AutoModelForCausalLM.from_pretrained(
-        model_id,
+        HF_MODEL,
         torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
         device_map="auto",
-    )
-
-    prompt = (
-        f"{SYSTEM}\n\n{user}\n\n"
-        'Return ONLY valid JSON like: {"bullets": ["..."], "used_citation_ids": [1,2]}'
     )
     ids = tok(prompt, return_tensors="pt").to(model.device)
     out = model.generate(
         **ids, max_new_tokens=500, temperature=0.2, do_sample=False, eos_token_id=tok.eos_token_id
     )
     text = tok.decode(out[0], skip_special_tokens=True)
-    # If model echoes prompt, trim
-    text = text.split('{"bullets"', 1)
-    if len(text) == 2:
-        text = '{"bullets' + text[1]
-    else:
-        text = text[0]
+    m = _JSON_BLOCK.search(text)
+    text = m.group(0) if m else text
     return _postprocess_json(text)
+
+# ---------------- Public API ----------------
+
+def explain_with_llm(drug: str, question: str, citations: List[Dict]) -> Dict:
+    """
+    Returns: {"bullets": List[str], "used_ids": List[int]}
+    """
+    ctx = _build_context(citations)
+    user = USER_TEMPLATE.format(
+        drug=drug,
+        question=question or "key facts and warnings",
+        context=ctx
+    )
+    prompt = (
+        f"{SYSTEM}\n\n{user}\n\n"
+        'Return ONLY valid JSON like: {"bullets": ["..."], "used_citation_ids": [1,2]}'
+    )
+
+    if LLM_PROVIDER == "gemini":
+        return _gemini_generate(prompt)
+
+    return _hf_generate(prompt)

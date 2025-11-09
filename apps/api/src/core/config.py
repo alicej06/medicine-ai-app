@@ -18,7 +18,7 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: Optional[str] = Field(default=None, alias="GEMINI_API_KEY")
-    gemini_model: str = Field(default="gemini-1.5-flash", alias="GEMINI_MODEL")
+    gemini_model: str = Field(default="gemini-2.5-flash", alias="GEMINI_MODEL")
 
     # HF local
     hf_model: str = Field(default="mistralai/Mistral-7B-Instruct-v0.2", alias="HF_MODEL")
