@@ -2,11 +2,6 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getDrugById, getExplanation } from '@/lib/api';
-import { Drug, Explanation } from '@/lib/types';
-import CurrentPrescriptions from '@/components/CurrentPrescriptions';
 import Link from 'next/link';
 import { useState } from 'react';
 
@@ -38,15 +33,15 @@ export default function LandingPage() {
               <img 
                 src="/phairm-logo.png" 
                 alt="PHAIRM Logo"
-                className="w-[120px] h-[120px] object-contain"
+                className="w-[72px] h-[72px] object-contain"
               />
               
-              <h1 className="text-[6.5rem] leading-none font-bold text-white tracking-[0.02em] -ml-1">
+              <h1 className="text-[6.5rem] leading-none font-bold text-white tracking-[0.02em] -ml-1 font-[family-name:var(--font-space-grotesk)]">
                 PHAIRM
               </h1>
             </div>
             
-            <p className="text-[#A0E7DD] text-[15px] tracking-[0.25em] uppercase font-light pl-1">
+            <p className="text-[#A0E7DD] text-[15px] tracking-[0.25em] uppercase font-light pl-1 font-[family-name:var(--font-ibm-plex-mono)]">
               MEDICINE INTERACTION CHECKER
             </p>
           </div>
@@ -74,7 +69,7 @@ export default function LandingPage() {
                   ${hoveredButton === button.id ? 'border-[#4DD4C0]/80 bg-[#1E5A6B]/20' : ''}
                 `}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[#C5F5ED] text-[17px] font-normal tracking-[0.15em] uppercase">
+                    <span className="text-[#C5F5ED] text-[17px] font-normal tracking-[0.15em] uppercase font-[family-name:var(--font-ibm-plex-mono)]">
                       {button.label}
                     </span>
                     <svg 
@@ -97,28 +92,10 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Disclaimer */}
-        <div className="mt-8 p-4 bg-gray-100 border border-gray-300 rounded-lg">
-          <p className="text-sm text-gray-600 text-center">
-            ⚕️ <span className="font-semibold">Medical Disclaimer:</span> This information is for educational purposes only. 
-            Always consult with a healthcare professional before starting or changing any medication.
-          </p>
-        </div>
-      </div>// apps/web/src/app/page.tsx
-
-import CurrentPrescriptions from '@/components/CurrentPrescriptions';
-
-export default function HomePage() {
-  return (
-    <main>
-      <CurrentPrescriptions />
-    </main>
-  );
-}
         {/* Footer */}
         <footer className="pb-10 px-10 md:px-20 lg:px-28">
           <a 
-            href="https://instagram.com/phairm_maia_biotech" 
+            href="https://instagram.com/maia_biotech.phairm" 
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 text-[#4DD4C0]/70 hover:text-[#4DD4C0] transition-colors group"
@@ -130,8 +107,8 @@ export default function HomePage() {
             >
               <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
             </svg>
-            <span className="text-[15px] group-hover:underline">
-              phairm_maia_biotech
+            <span className="text-[15px] group-hover:underline font-[family-name:var(--font-ibm-plex-mono)]">
+              maia_biotech.phairm
             </span>
           </a>
         </footer>
