@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     # HF local
     hf_model: str = Field(default="mistralai/Mistral-7B-Instruct-v0.2", alias="HF_MODEL")
 
+    # JWT/ Auth
+    JWT_SECRET_KEY: str = "change_me_in_env"   # override in .env
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+
     @property
     def DATABASE_URL(self) -> str: 
         return self.database_url
