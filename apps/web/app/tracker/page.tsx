@@ -127,6 +127,7 @@ export default function TrackerPage() {
   const [loading, setLoading] = useState(true);
   const [selectedMedId, setSelectedMedId] = useState<SelectedMedId>("all");
   const [chartWindow, setChartWindow] = useState<7 | 30>(7);
+  const [detailMedId, setDetailMedId] = useState<number | null>(null);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -518,6 +519,42 @@ export default function TrackerPage() {
     (logs) => logs && logs.length > 0
   );
 
+  // 🔹 Today checklist: group meds by timeOfDay, show taken/not taken today
+  const todayByTime = useMemo(() => {
+    const map: {
+      [key: string]: { med: Medication; hasDoseToday: boolean }[];
+    } = {};
+
+    const todayKey = normalizeDateKey(new Date());
+
+    medications.forEach((med) => {
+      const medLogs = logsByMed[med.id] || [];
+      const hasTodayDose = medLogs.some(
+        (log) => normalizeDateKey(new Date(log.taken_at)) === todayKey
+      );
+
+      med.timeOfDay.forEach((slot) => {
+        if (!map[slot]) map[slot] = [];
+        map[slot].push({ med, hasDoseToday: hasTodayDose });
+      });
+    });
+
+    return map;
+  }, [medications, logsByMed]);
+
+  const anyScheduledToday = useMemo(() => {
+    return medications.some((m) => m.timeOfDay && m.timeOfDay.length > 0);
+  }, [medications]);
+
+  const detailMed = detailMedId
+    ? medications.find((m) => m.id === detailMedId) || null
+    : null;
+  const detailLogs =
+    detailMedId !== null ? logsByMed[detailMedId] || [] : [];
+
+  const detailStats7 = summarizeLogs(detailLogs, 7);
+  const detailStats30 = summarizeLogs(detailLogs, 30);
+
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Gradient Background */}
@@ -864,6 +901,95 @@ export default function TrackerPage() {
             </div>
           )}
 
+          {/* Today's Checklist */}
+          {!loading && medications.length > 0 && (
+            <section className="mb-10 bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-6">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white font-[family-name:var(--font-space-grotesk)]">
+                    Today&apos;s checklist
+                  </h2>
+                  <p className="text-cyan-200/80 text-sm">
+                    See what&apos;s scheduled for today by time of day and log
+                    doses in one tap.
+                  </p>
+                </div>
+                {!anyScheduledToday && (
+                  <p className="text-xs text-cyan-300/70">
+                    Tip: add <span className="font-semibold">Time of Day</span>{" "}
+                    on each medication to see them here.
+                  </p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                {timeOptions.map((slot) => {
+                  const group =
+                    todayByTime[slot.value] ||
+                    ([] as { med: Medication; hasDoseToday: boolean }[]);
+
+                  return (
+                    <div
+                      key={slot.value}
+                      className="bg-[#0B1127]/90 border border-cyan-400/20 rounded-lg p-4"
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl">{slot.icon}</span>
+                          <span className="text-cyan-100 text-sm font-semibold">
+                            {slot.label}
+                          </span>
+                        </div>
+                        <span className="text-xs text-cyan-300/70">
+                          {group.length} med
+                          {group.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+
+                      {group.length === 0 ? (
+                        <p className="text-xs text-cyan-300/60">
+                          No medications tagged for this time.
+                        </p>
+                      ) : (
+                        <div className="space-y-2">
+                          {group.map(({ med, hasDoseToday }) => (
+                            <div
+                              key={med.id}
+                              className="flex items-center justify-between gap-2 bg-[#1E5A6B]/20 rounded-md px-3 py-2"
+                            >
+                              <div className="min-w-0">
+                                <p className="text-sm text-cyan-100 truncate">
+                                  {med.name}
+                                </p>
+                                {med.dosage && (
+                                  <p className="text-[11px] text-cyan-300/70">
+                                    {med.dosage}
+                                  </p>
+                                )}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleMarkTakenNow(med)}
+                                disabled={hasDoseToday}
+                                className={`text-[11px] px-2 py-1 rounded-full border ${
+                                  hasDoseToday
+                                    ? "border-emerald-400/60 text-emerald-300/80 bg-emerald-900/20 cursor-default"
+                                    : "border-cyan-400/70 text-cyan-100 hover:bg-cyan-500/20"
+                                } transition-colors`}
+                              >
+                                {hasDoseToday ? "Done" : "Mark taken"}
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+          )}
+
           {/* Medications List */}
           {loading ? (
             <div className="text-center py-20 text-cyan-100">
@@ -908,7 +1034,7 @@ export default function TrackerPage() {
                           ID: {med.rxCui}
                         </p>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-col gap-1 items-end">
                         <button
                           onClick={() => handleEdit(med)}
                           className="text-cyan-400 hover:text-cyan-300 transition-colors p-1"
@@ -946,6 +1072,12 @@ export default function TrackerPage() {
                               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                             />
                           </svg>
+                        </button>
+                        <button
+                          onClick={() => setDetailMedId(med.id)}
+                          className="text-[11px] text-cyan-200/80 hover:text-cyan-100 underline mt-1"
+                        >
+                          View details
                         </button>
                       </div>
                     </div>
@@ -1156,6 +1288,123 @@ export default function TrackerPage() {
           )}
         </div>
       </div>
+
+      {/* Detail Modal */}
+      {detailMed && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-[#0B1127] border border-cyan-400/40 rounded-xl max-w-2xl w-full mx-4 max-h-[80vh] overflow-y-auto p-6">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-white font-[family-name:var(--font-space-grotesk)]">
+                  {detailMed.name}
+                </h2>
+                {detailMed.dosage && (
+                  <p className="text-cyan-200/80 text-sm mt-1">
+                    {detailMed.dosage}
+                  </p>
+                )}
+                <p className="text-xs text-cyan-300/70 mt-1">
+                  ID: {detailMed.rxCui}
+                </p>
+              </div>
+              <button
+                onClick={() => setDetailMedId(null)}
+                className="text-cyan-300 hover:text-cyan-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Stats */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+              <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-3">
+                <p className="text-[11px] text-cyan-300/70 uppercase tracking-wider">
+                  Doses (7d)
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">
+                  {detailStats7.totalDoses}
+                </p>
+              </div>
+              <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-3">
+                <p className="text-[11px] text-cyan-300/70 uppercase tracking-wider">
+                  Streak (7d)
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">
+                  {detailStats7.streak}
+                  <span className="text-sm text-cyan-300/80 ml-1">
+                    day{detailStats7.streak === 1 ? "" : "s"}
+                  </span>
+                </p>
+              </div>
+              <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-3">
+                <p className="text-[11px] text-cyan-300/70 uppercase tracking-wider">
+                  Adherence (7d)
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">
+                  {detailStats7.adherencePercent}%
+                </p>
+              </div>
+              <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-3">
+                <p className="text-[11px] text-cyan-300/70 uppercase tracking-wider">
+                  Doses (30d)
+                </p>
+                <p className="mt-1 text-xl font-bold text-white">
+                  {detailStats30.totalDoses}
+                </p>
+              </div>
+            </div>
+
+            {/* Logs table */}
+            <div>
+              <h3 className="text-lg font-semibold text-white mb-2">
+                Log history
+              </h3>
+              {detailLogs.length === 0 ? (
+                <p className="text-sm text-cyan-300/70">
+                  No doses logged yet for this medication.
+                </p>
+              ) : (
+                <div className="border border-cyan-400/30 rounded-lg overflow-hidden text-sm">
+                  <div className="grid grid-cols-2 bg-[#0B1127]/90 border-b border-cyan-400/30 px-3 py-2 text-cyan-200/90 font-[family-name:var(--font-ibm-plex-mono)] text-xs uppercase tracking-wider">
+                    <div>Date</div>
+                    <div>Time</div>
+                  </div>
+                  <div className="max-h-64 overflow-y-auto">
+                    {detailLogs.map((log) => {
+                      const d = new Date(log.taken_at);
+                      return (
+                        <div
+                          key={log.id}
+                          className="grid grid-cols-2 px-3 py-2 border-b border-cyan-400/10 text-cyan-100/90"
+                        >
+                          <div>
+                            {d.toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </div>
+                          <div>{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Close button footer */}
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setDetailMedId(null)}
+                className="px-4 py-2 border border-cyan-400/50 text-cyan-200 hover:bg-cyan-900/30 rounded-lg text-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
