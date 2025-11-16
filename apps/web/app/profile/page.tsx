@@ -1,63 +1,410 @@
-"use client";
+// app/profile/page.tsx
 
-import { useEffect, useState } from "react";
-import { getMe, addMedicationLog, getMyMedicationLogs } from "@/lib/api";
-import { getToken } from "@/lib/auth";
-import Link from "next/link";
+'use client';
+
+import { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
+interface UserProfile {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  joinedDate: string;
+  medications: any[];
+  totalDosesTaken?: number;
+  adherenceRate?: number;
+}
 
 export default function ProfilePage() {
-  const [user, setUser] = useState<any>(null);
+  const router = useRouter();
+  const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
-  const [logs, setLogs] = useState<Record<number, any[]>>({}); // logs per med
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: ''
+  });
 
-  // Fetch user profile on load
   useEffect(() => {
-    const token = getToken();
-    if (!token) {
+    // TODO: Replace with actual API call when backend is ready
+    // Simulating user data
+    setTimeout(() => {
+      const mockUser: UserProfile = {
+        id: '1',
+        firstName: 'John',
+        lastName: 'Doe',
+        email: 'john.doe@example.com',
+        joinedDate: '2024-01-15',
+        medications: [],
+        totalDosesTaken: 245,
+        adherenceRate: 87
+      };
+      
+      setUser(mockUser);
+      setEditForm({
+        firstName: mockUser.firstName,
+        lastName: mockUser.lastName,
+        email: mockUser.email
+      });
       setLoading(false);
-      return;
-    }
+    }, 500);
 
-    async function load() {
-      const me = await getMe();
-      setUser(me);
-
-      // fetch logs for each medication
-      const logsObj: Record<number, any[]> = {};
-      for (const med of me.medications) {
-        const medLogs = await getMyMedicationLogs(med.id);
-        logsObj[med.id] = medLogs;
+    /* When backend is ready, use:
+    async function loadProfile() {
+      try {
+        const token = getToken();
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+        
+        const userData = await getMe();
+        setUser(userData);
+        setEditForm({
+          firstName: userData.firstName,
+          lastName: userData.lastName,
+          email: userData.email
+        });
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      } finally {
+        setLoading(false);
       }
-      setLogs(logsObj);
-      setLoading(false);
     }
-
-    load();
+    loadProfile();
+    */
   }, []);
 
-  if (loading) return <div className="p-6">Loading...</div>;
-  if (!user) return <div className="p-6">You must sign in first.</div>;
+  const handleSave = async () => {
+    // TODO: Implement save functionality
+    setUser(prev => prev ? {
+      ...prev,
+      firstName: editForm.firstName,
+      lastName: editForm.lastName,
+      email: editForm.email
+    } : null);
+    setIsEditing(false);
+    
+    /* When backend is ready:
+    try {
+      await updateProfile(editForm);
+      setUser(prev => prev ? {...prev, ...editForm} : null);
+      setIsEditing(false);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+    }
+    */
+  };
+
+  const handleLogout = () => {
+    // TODO: Implement logout
+    // clearToken();
+    router.push('/');
+  };
+
+  if (loading) {
+    return (
+      <main className="min-h-screen relative overflow-hidden flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
+          <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
+        </div>
+        <div className="relative z-10 text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-cyan-400 mx-auto mb-4"></div>
+          <p className="text-cyan-200">Loading profile...</p>
+        </div>
+      </main>
+    );
+  }
+
+  if (!user) {
+    return (
+      <main className="min-h-screen relative overflow-hidden flex items-center justify-center">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
+          <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
+        </div>
+        <div className="relative z-10 text-center px-8">
+          <div className="text-6xl mb-6">🔒</div>
+          <h2 className="text-3xl font-bold text-white mb-4">Please Sign In</h2>
+          <p className="text-cyan-200 mb-8">You need to be logged in to view your profile</p>
+          <Link
+            href="/login"
+            className="inline-block bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-8 rounded-lg transition-all"
+          >
+            Go to Login
+          </Link>
+        </div>
+      </main>
+    );
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-3xl font-bold">Your Profile</h1>
+    <main className="min-h-screen relative overflow-hidden">
+      {/* Gradient Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
+        <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
+      </div>
 
-      <section className="bg-white p-4 rounded shadow">
-        <h2 className="text-xl font-semibold mb-2">Account info</h2>
-        <p><strong>Name:</strong> {user.name}</p>
-        <p><strong>Email:</strong> {user.email}</p>
-      </section>
+      {/* Content */}
+      <div className="relative z-10 min-h-screen">
+        {/* Header */}
+        <header className="px-8 md:px-16 lg:px-24 py-8">
+          <Link 
+            href="/"
+            className="inline-flex items-center gap-2 text-cyan-300/80 hover:text-cyan-200 transition-colors group"
+          >
+            <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">Back to Home</span>
+          </Link>
+        </header>
 
-      <section className="bg-white p-4 rounded shadow">
-  <h2 className="text-xl font-semibold mb-2">Medications</h2>
-  <p className="text-gray-700 mb-4">
-    You can manage your medications and log doses in your tracker.
-  </p>
-  <Link href="/tracker" className="inline-block px-4 py-2 rounded bg-blue-600 text-white">
-    Open Tracker
-  </Link>
-</section>
+        {/* Main Content */}
+        <div className="px-8 md:px-16 lg:px-24 pb-20">
+          {/* Profile Header */}
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-12">
+            <div className="flex items-center gap-6 mb-6 md:mb-0">
+              {/* Avatar */}
+              <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-400 to-teal-400 flex items-center justify-center text-4xl font-bold text-white shadow-lg">
+                {user.firstName[0]}{user.lastName[0]}
+              </div>
+              
+              <div>
+                <h1 className="text-4xl font-bold text-white mb-2 font-[family-name:var(--font-space-grotesk)]">
+                  {user.firstName} {user.lastName}
+                </h1>
+                <p className="text-cyan-200/80 font-[family-name:var(--font-ibm-plex-mono)]">
+                  Member since {new Date(user.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+            </div>
 
-    </div>
+            {/* Logout Button */}
+            <button
+              onClick={handleLogout}
+              className="px-6 py-3 border border-red-400/50 text-red-300 hover:bg-red-900/20 rounded-lg transition-colors font-[family-name:var(--font-ibm-plex-mono)]"
+            >
+              Logout
+            </button>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            {/* Total Medications */}
+            <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                  Medications
+                </span>
+                <span className="text-3xl">💊</span>
+              </div>
+              <div className="text-4xl font-bold text-white mb-1">
+                {user.medications?.length || 0}
+              </div>
+              <p className="text-cyan-200/70 text-sm">Active prescriptions</p>
+            </div>
+
+            {/* Adherence Rate */}
+            <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                  Adherence
+                </span>
+                <span className="text-3xl">📊</span>
+              </div>
+              <div className="text-4xl font-bold text-white mb-1">
+                {user.adherenceRate || 0}%
+              </div>
+              <p className="text-cyan-200/70 text-sm">Overall compliance</p>
+            </div>
+
+            {/* Total Doses */}
+            <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                  Doses Taken
+                </span>
+                <span className="text-3xl">✅</span>
+              </div>
+              <div className="text-4xl font-bold text-white mb-1">
+                {user.totalDosesTaken || 0}
+              </div>
+              <p className="text-cyan-200/70 text-sm">Total recorded</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Account Information */}
+            <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-white font-[family-name:var(--font-space-grotesk)]">
+                  Account Information
+                </h2>
+                {!isEditing && (
+                  <button
+                    onClick={() => setIsEditing(true)}
+                    className="text-cyan-400 hover:text-cyan-300 transition-colors"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-cyan-300 text-sm font-medium mb-2 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      First Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.firstName}
+                      onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
+                      className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-cyan-300 text-sm font-medium mb-2 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      Last Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.lastName}
+                      onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
+                      className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-cyan-300 text-sm font-medium mb-2 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      value={editForm.email}
+                      onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                      className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div className="flex gap-3 pt-4">
+                    <button
+                      onClick={handleSave}
+                      className="flex-1 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+                    >
+                      Save Changes
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditForm({
+                          firstName: user.firstName,
+                          lastName: user.lastName,
+                          email: user.email
+                        });
+                      }}
+                      className="px-6 py-3 border border-cyan-400/50 text-cyan-300 hover:bg-cyan-900/20 rounded-lg transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      Full Name
+                    </span>
+                    <p className="text-white text-lg mt-1">
+                      {user.firstName} {user.lastName}
+                    </p>
+                  </div>
+
+                  <div>
+                    <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      Email Address
+                    </span>
+                    <p className="text-white text-lg mt-1">{user.email}</p>
+                  </div>
+
+                  <div>
+                    <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                      User ID
+                    </span>
+                    <p className="text-cyan-300/70 text-sm mt-1 font-mono">{user.id}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Quick Actions */}
+            <div className="space-y-6">
+              {/* Medication Tracker Card */}
+              <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-8">
+                <h2 className="text-2xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
+                  Medication Tracker
+                </h2>
+                <p className="text-cyan-200/80 mb-6">
+                  Manage your medications and track your daily schedule
+                </p>
+                <Link
+                  href="/tracker"
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-6 rounded-lg transition-all"
+                >
+                  <span>Open Tracker</span>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </Link>
+              </div>
+
+              {/* Other Quick Links */}
+              <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-8">
+                <h2 className="text-2xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
+                  Quick Links
+                </h2>
+                <div className="space-y-3">
+                  <Link
+                    href="/search"
+                    className="flex items-center justify-between p-3 rounded-lg border border-cyan-400/30 hover:border-cyan-400/60 hover:bg-cyan-900/20 transition-all group"
+                  >
+                    <span className="text-cyan-100">Drug Information</span>
+                    <svg className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+
+                  <Link
+                    href="/interactions"
+                    className="flex items-center justify-between p-3 rounded-lg border border-cyan-400/30 hover:border-cyan-400/60 hover:bg-cyan-900/20 transition-all group"
+                  >
+                    <span className="text-cyan-100">Interaction Checker</span>
+                    <svg className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </Link>
+
+                  <button
+                    onClick={handleLogout}
+                    className="w-full flex items-center justify-between p-3 rounded-lg border border-red-400/30 hover:border-red-400/60 hover:bg-red-900/20 transition-all text-red-300 group"
+                  >
+                    <span>Logout</span>
+                    <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   );
 }
