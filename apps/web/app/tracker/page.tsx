@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   getMyMedications,
   addMedication,
@@ -36,6 +37,8 @@ interface MedLog {
   medication_id: number;
   taken_at: string; // ISO string from backend
 }
+
+type SelectedMedId = "all" | number;
 
 function normalizeDateKey(date: Date): string {
   return date.toISOString().split("T")[0]; // "YYYY-MM-DD"
@@ -73,9 +76,10 @@ function summarizeLogs(logs: MedLog[], daysWindow = 7) {
 
   // Streak: consecutive days (up to window) ending today with at least one dose
   let streak = 0;
+  const nowCopy = new Date();
   for (let i = 0; i < daysWindow; i++) {
-    const d = new Date();
-    d.setDate(now.getDate() - i);
+    const d = new Date(nowCopy);
+    d.setDate(nowCopy.getDate() - i);
     const key = normalizeDateKey(d);
     if (dosesPerDay[key]) {
       streak += 1;
@@ -113,15 +117,16 @@ function buildMedCalendar(logs: MedLog[], daysToShow = 14) {
   return days;
 }
 
-type SelectedMedId = "all" | number;
-
 export default function TrackerPage() {
+  const router = useRouter();
+
   const [medications, setMedications] = useState<Medication[]>([]);
   const [logsByMed, setLogsByMed] = useState<Record<number, MedLog[]>>({});
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMedId, setSelectedMedId] = useState<SelectedMedId>("all");
+  const [chartWindow, setChartWindow] = useState<7 | 30>(7);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -183,7 +188,7 @@ export default function TrackerPage() {
           medsWithMeta.push({
             id: m.id,
             name: m.display_name,
-            rxCui: m.rx_cui,
+            rxCui: m.rxCui ?? m.rx_cui,
             dosage: "", // UI-only for now
             frequency: "daily",
             timeOfDay: [],
@@ -195,15 +200,18 @@ export default function TrackerPage() {
 
         setMedications(medsWithMeta);
         setLogsByMed(logsMap);
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to load medications", err);
+        if (err instanceof Error && err.message.includes("401")) {
+          router.push("/signin");
+        }
       } finally {
         setLoading(false);
       }
     }
 
     load();
-  }, []);
+  }, [router]);
 
   const handleFrequencyChange = (value: string) => {
     if (value === "custom") {
@@ -319,11 +327,15 @@ export default function TrackerPage() {
 
         setMedications((prev) => [...prev, newMed]);
         setLogsByMed((prev) => ({ ...prev, [newMed.id]: [] }));
-      } catch (err) {
+      } catch (err: any) {
         console.error("Failed to add medication", err);
-        alert(
-          "Failed to save medication. Please make sure you are signed in and try again."
-        );
+        if (err instanceof Error && err.message.includes("401")) {
+          router.push("/signin");
+        } else {
+          alert(
+            "Failed to save medication. Please make sure you are signed in and try again."
+          );
+        }
       }
     }
 
@@ -386,7 +398,8 @@ export default function TrackerPage() {
       await addMedicationLog(med.id);
       const logs: any[] = await getMyMedicationLogs(med.id);
       const sortedLogs = logs.sort(
-        (a, b) => new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime()
+        (a, b) =>
+          new Date(b.taken_at).getTime() - new Date(a.taken_at).getTime()
       );
       const lastTaken =
         sortedLogs.length > 0
@@ -408,15 +421,61 @@ export default function TrackerPage() {
             : m
         )
       );
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to log intake", err);
-      alert("Failed to log this dose. Please try again.");
+      if (err instanceof Error && err.message.includes("401")) {
+        router.push("/signin");
+      } else {
+        alert("Failed to log this dose. Please try again.");
+      }
     }
   };
 
-  // 🔹 Global chart data (doses per day, last 7 days, optionally filtered by med)
-  const dosesChartData = useMemo(() => {
+  // 🔹 Overall stats across all meds (last 7 days)
+  const overallStats = useMemo(() => {
     const daysWindow = 7;
+    const now = new Date();
+    const start = new Date();
+    start.setDate(now.getDate() - (daysWindow - 1));
+
+    const perDayCounts: Record<string, number> = {};
+    let bestStreak = 0;
+    let totalDoses = 0;
+    let activeMeds = 0;
+
+    Object.values(logsByMed).forEach((logs) => {
+      if (!logs || logs.length === 0) return;
+
+      activeMeds += 1;
+      const stats = summarizeLogs(logs, daysWindow);
+      bestStreak = Math.max(bestStreak, stats.streak);
+
+      // union of doses per day
+      logs.forEach((log) => {
+        const d = new Date(log.taken_at);
+        if (d >= start && d <= now) {
+          const key = normalizeDateKey(d);
+          perDayCounts[key] = (perDayCounts[key] || 0) + 1;
+          totalDoses += 1;
+        }
+      });
+    });
+
+    const daysWithAnyDose = Object.keys(perDayCounts).length;
+    const adherencePercent =
+      daysWindow > 0 ? Math.round((daysWithAnyDose / daysWindow) * 100) : 0;
+
+    return {
+      totalDoses,
+      activeMeds,
+      bestStreak,
+      adherencePercent,
+    };
+  }, [logsByMed]);
+
+  // 🔹 Global chart data (doses per day, last N days, optionally filtered by med)
+  const dosesChartData = useMemo(() => {
+    const daysWindow = chartWindow;
     const now = new Date();
     const start = new Date();
     start.setDate(now.getDate() - (daysWindow - 1));
@@ -448,12 +507,16 @@ export default function TrackerPage() {
     }
 
     return data;
-  }, [logsByMed, selectedMedId]);
+  }, [logsByMed, selectedMedId, chartWindow]);
 
   const visibleMeds =
     selectedMedId === "all"
       ? medications
       : medications.filter((m) => m.id === selectedMedId);
+
+  const hasAnyLogs = Object.values(logsByMed).some(
+    (logs) => logs && logs.length > 0
+  );
 
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -514,22 +577,78 @@ export default function TrackerPage() {
 
         {/* Main Content */}
         <div className="px-8 md:px-16 lg:px-24 pb-20">
-          {/* Title & Add Button */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-12">
-            <div>
-              <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
-                Drug Tracker
-              </h1>
-              <p className="text-cyan-200/80 text-lg font-[family-name:var(--font-ibm-plex-mono)]">
-                Manage your medication schedule, history, and adherence
-              </p>
+          {/* Title & Overview + Add Button */}
+          <div className="flex flex-col gap-8 mb-12">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+              <div>
+                <h1 className="text-5xl md:text-6xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
+                  Drug Tracker
+                </h1>
+                <p className="text-cyan-200/80 text-lg font-[family-name:var(--font-ibm-plex-mono)]">
+                  Track what you&apos;ve taken, spot streaks, and keep your
+                  routine on autopilot.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowAddForm(!showAddForm)}
+                className="self-start md:self-auto bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-cyan-500/50 font-[family-name:var(--font-ibm-plex-mono)] tracking-wider"
+              >
+                {showAddForm ? "✕ CANCEL" : "+ ADD MEDICATION"}
+              </button>
             </div>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className="mt-6 md:mt-0 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-cyan-500/50 font-[family-name:var(--font-ibm-plex-mono)] tracking-wider"
-            >
-              {showAddForm ? "✕ CANCEL" : "+ ADD MEDICATION"}
-            </button>
+
+            {/* Quick Overview Cards */}
+            {!loading && medications.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-4">
+                  <p className="text-xs text-cyan-300/70 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                    Doses logged (7d)
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {overallStats.totalDoses}
+                  </p>
+                  <p className="text-xs text-cyan-300/60 mt-1">
+                    Across all medications
+                  </p>
+                </div>
+                <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-4">
+                  <p className="text-xs text-cyan-300/70 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                    Active meds
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {overallStats.activeMeds}
+                  </p>
+                  <p className="text-xs text-cyan-300/60 mt-1">
+                    With at least one logged dose
+                  </p>
+                </div>
+                <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-4">
+                  <p className="text-xs text-cyan-300/70 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                    Best streak (7d)
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {overallStats.bestStreak}
+                    <span className="text-base text-cyan-300/80 ml-1">
+                      day{overallStats.bestStreak === 1 ? "" : "s"}
+                    </span>
+                  </p>
+                  <p className="text-xs text-cyan-300/60 mt-1">
+                    Longest run for any medication
+                  </p>
+                </div>
+                <div className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-4">
+                  <p className="text-xs text-cyan-300/70 uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
+                    Adherence (7d)
+                  </p>
+                  <p className="mt-2 text-2xl font-bold text-white">
+                    {overallStats.adherencePercent}%
+                  </p>
+                  <p className="text-xs text-cyan-300/60 mt-1">
+                    Days with any dose logged
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Add/Edit Form */}
@@ -679,14 +798,11 @@ export default function TrackerPage() {
                         key={time.value}
                         type="button"
                         onClick={() => handleTimeToggle(time.value)}
-                        className={`
-                          p-4 rounded-lg border-2 transition-all duration-200
-                          ${
-                            formData.timeOfDay.includes(time.value)
-                              ? "border-cyan-400 bg-cyan-900/40 text-cyan-100"
-                              : "border-cyan-400/30 bg-[#1E5A6B]/20 text-cyan-300/60 hover:border-cyan-400/50"
-                          }
-                        `}
+                        className={`p-4 rounded-lg border-2 transition-all duration-200 ${
+                          formData.timeOfDay.includes(time.value)
+                            ? "border-cyan-400 bg-cyan-900/40 text-cyan-100"
+                            : "border-cyan-400/30 bg-[#1E5A6B]/20 text-cyan-300/60 hover:border-cyan-400/50"
+                        }`}
                       >
                         <div className="text-2xl mb-1">{time.icon}</div>
                         <div className="text-sm font-medium">
@@ -760,7 +876,7 @@ export default function TrackerPage() {
                 No medications tracked yet
               </h3>
               <p className="text-cyan-300/60 mb-6">
-                Add your first medication to start tracking your schedule
+                Add your first medication to start tracking your schedule.
               </p>
               <button
                 onClick={() => setShowAddForm(true)}
@@ -900,9 +1016,7 @@ export default function TrackerPage() {
                       </span>
                       <p className="text-cyan-100 text-sm mt-1">
                         Streak:{" "}
-                        <span className="font-semibold">
-                          {stats.streak}
-                        </span>{" "}
+                        <span className="font-semibold">{stats.streak}</span>{" "}
                         day{stats.streak === 1 ? "" : "s"}
                       </p>
                       <p className="text-cyan-100 text-sm">
@@ -970,17 +1084,48 @@ export default function TrackerPage() {
           )}
 
           {/* Global History & Insights */}
-          {!loading && medications.length > 0 && (
+          {!loading && medications.length > 0 && hasAnyLogs && (
             <div className="mt-12 bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-6">
-              <h2 className="text-2xl font-bold text-white mb-2 font-[family-name:var(--font-space-grotesk)]">
-                History & Insights
-              </h2>
-              <p className="text-cyan-200/80 text-sm mb-4">
-                Doses logged in the last 7 days{" "}
-                {selectedMedId === "all"
-                  ? "across all medications."
-                  : "for the selected medication."}
-              </p>
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-4">
+                <div>
+                  <h2 className="text-2xl font-bold text-white mb-1 font-[family-name:var(--font-space-grotesk)]">
+                    History & Insights
+                  </h2>
+                  <p className="text-cyan-200/80 text-sm">
+                    Doses logged in the last {chartWindow} days{" "}
+                    {selectedMedId === "all"
+                      ? "across all medications."
+                      : "for the selected medication."}
+                  </p>
+                </div>
+
+                {/* Range toggle */}
+                <div className="inline-flex items-center bg-[#0B1127]/80 border border-cyan-400/40 rounded-full p-1 text-xs font-[family-name:var(--font-ibm-plex-mono)]">
+                  <button
+                    type="button"
+                    onClick={() => setChartWindow(7)}
+                    className={`px-3 py-1 rounded-full ${
+                      chartWindow === 7
+                        ? "bg-cyan-500 text-white"
+                        : "text-cyan-200/80 hover:text-white"
+                    }`}
+                  >
+                    7 days
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChartWindow(30)}
+                    className={`px-3 py-1 rounded-full ${
+                      chartWindow === 30
+                        ? "bg-cyan-500 text-white"
+                        : "text-cyan-200/80 hover:text-white"
+                    }`}
+                  >
+                    30 days
+                  </button>
+                </div>
+              </div>
+
               <div className="w-full h-64">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={dosesChartData}>
@@ -991,6 +1136,11 @@ export default function TrackerPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
+
+              <p className="mt-3 text-xs text-cyan-300/70">
+                Each bar represents how many doses you logged on that day for
+                the selected view.
+              </p>
             </div>
           )}
 

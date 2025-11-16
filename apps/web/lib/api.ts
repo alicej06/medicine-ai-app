@@ -1,7 +1,7 @@
 // apps/web/src/lib/api.ts
 
 import { Drug, SearchResponse, Explanation } from "./types";
-import { getToken } from "./auth";
+import { getToken, clearToken } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -9,9 +9,9 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 async function api(path: string, options: RequestInit = {}) {
   const token = getToken();
 
-  const headers: any = {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
+    ...(options.headers as Record<string, string> | undefined),
   };
 
   if (token) {
@@ -25,8 +25,23 @@ async function api(path: string, options: RequestInit = {}) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
+
+
+    // 🔹 Special-case 401 so frontend can react (logout/redirect)
+    if (res.status === 401) {
+      // Token is missing/invalid/expired
+      clearToken();
+      const err = new Error("Unauthorized");
+      // @ts-ignore  (optional: add a type later)
+      err.status = 401;
+      throw err;
+    }
     console.error("API error:", res.status, text);
-    throw new Error(`API error ${res.status}`);
+    const err = new Error(`API error ${res.status}`);
+    // @ts-ignore  (optional: add a type later)
+    err.status = res.status;
+    throw err;
+
   }
 
   // If there's no body (204, etc.) just return null
@@ -35,8 +50,9 @@ async function api(path: string, options: RequestInit = {}) {
   return res.json();
 }
 
-
- //Existing drug/search APIs
+// =========================
+// Existing drug/search APIs
+// =========================
 
 export async function searchDrugs(
   query: string,
@@ -113,7 +129,7 @@ export async function getExplanation(drugId: string): Promise<Explanation> {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ drugId: drugId }),
+      body: JSON.stringify({ drugId }),
     });
 
     if (!res.ok) {
@@ -127,8 +143,9 @@ export async function getExplanation(drugId: string): Promise<Explanation> {
   }
 }
 
- // New auth endpoints
-
+// ====================
+// New auth endpoints
+// ====================
 
 export async function login(email: string, password: string) {
   return api("/auth/login", {
@@ -148,8 +165,9 @@ export async function getMe() {
   return api("/auth/me");
 }
 
- //New medication endpoints
-
+// =======================
+// New medication endpoints
+// =======================
 
 export async function getMyMedications() {
   return api("/me/medications");
@@ -162,9 +180,9 @@ export async function addMedication(rxCui: string, displayName: string) {
   });
 }
 
-
-//New intake log endpoints
-
+// ======================
+// New intake log endpoints
+// ======================
 
 export async function addMedicationLog(medicationId: number) {
   return api(`/me/medications/${medicationId}/log`, {

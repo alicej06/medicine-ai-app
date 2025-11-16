@@ -1,20 +1,63 @@
 // app/profile/page.tsx
 
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import {
+  getMe,
+  getMyMedications,
+  getMyMedicationLogs,
+} from "@/lib/api";
+import { getToken, clearToken } from "@/lib/auth";
 
 interface UserProfile {
   id: string;
   firstName: string;
   lastName: string;
   email: string;
-  joinedDate: string;
-  medications: any[];
+  joinedDate: string;      // ISO string
+  medications: any[];      // backend /me/medications objects
   totalDosesTaken?: number;
   adherenceRate?: number;
+}
+
+interface MedLog {
+  id: number;
+  medication_id: number;
+  taken_at: string;        // ISO datetime string
+}
+
+// Helper to normalize a date to YYYY-MM-DD
+function normalizeDateKey(date: Date): string {
+  return date.toISOString().split("T")[0];
+}
+
+// Compute a simple 7-day adherence rate across all logs
+function computeAdherence(allLogs: MedLog[], daysWindow = 7): number {
+  if (!allLogs || allLogs.length === 0) {
+    return 0;
+  }
+
+  const now = new Date();
+  const start = new Date();
+  start.setDate(now.getDate() - (daysWindow - 1));
+
+  const dosesPerDay: Record<string, boolean> = {};
+
+  for (const log of allLogs) {
+    const d = new Date(log.taken_at);
+    if (d >= start && d <= now) {
+      const key = normalizeDateKey(d);
+      dosesPerDay[key] = true;
+    }
+  }
+
+  const daysWithDose = Object.keys(dosesPerDay).length;
+  return daysWindow > 0
+    ? Math.round((daysWithDose / daysWindow) * 100)
+    : 0;
 }
 
 export default function ProfilePage() {
@@ -23,86 +66,129 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({
-    firstName: '',
-    lastName: '',
-    email: ''
+    firstName: "",
+    lastName: "",
+    email: "",
   });
 
   useEffect(() => {
-    // TODO: Replace with actual API call when backend is ready
-    // Simulating user data
-    setTimeout(() => {
-      const mockUser: UserProfile = {
-        id: '1',
-        firstName: 'John',
-        lastName: 'Doe',
-        email: 'john.doe@example.com',
-        joinedDate: '2024-01-15',
-        medications: [],
-        totalDosesTaken: 245,
-        adherenceRate: 87
-      };
-      
-      setUser(mockUser);
-      setEditForm({
-        firstName: mockUser.firstName,
-        lastName: mockUser.lastName,
-        email: mockUser.email
-      });
-      setLoading(false);
-    }, 500);
-
-    /* When backend is ready, use:
     async function loadProfile() {
+      const token = getToken();
+      if (!token) {
+        router.push("/signin");
+        return;
+      }
+
       try {
-        const token = getToken();
-        if (!token) {
-          router.push('/login');
-          return;
+        // 1) Fetch user info
+        const me: any = await getMe();
+        // Expecting something like: { id, email, name, created_at, ... }
+
+        // 2) Fetch medications
+        const meds: any[] = await getMyMedications();
+
+        // 3) Fetch logs for each medication and aggregate
+        let allLogs: MedLog[] = [];
+
+        for (const m of meds) {
+          try {
+            const logs: any[] = await getMyMedicationLogs(m.id);
+            const mapped: MedLog[] = logs.map((log: any) => ({
+              id: log.id,
+              medication_id: m.id,
+              taken_at: log.taken_at,
+            }));
+            allLogs = allLogs.concat(mapped);
+          } catch (e) {
+            console.error("Failed to load logs for medication", m.id, e);
+          }
         }
-        
-        const userData = await getMe();
-        setUser(userData);
+
+        const totalDosesTaken = allLogs.length;
+        const adherenceRate = computeAdherence(allLogs, 7);
+
+        // 4) Split name into first/last for UI
+        const fullName: string = me.name || "";
+        const parts = fullName.trim().split(" ");
+        const firstName = parts[0] || "User";
+        const lastName = parts.slice(1).join(" ");
+
+        // 5) Joined date from backend (fallback to now if missing)
+        const joined =
+          me.created_at || me.createdAt || new Date().toISOString();
+
+        const profile: UserProfile = {
+          id: String(me.id),
+          firstName,
+          lastName,
+          email: me.email,
+          joinedDate: joined,
+          medications: meds,
+          totalDosesTaken,
+          adherenceRate,
+        };
+
+        setUser(profile);
         setEditForm({
-          firstName: userData.firstName,
-          lastName: userData.lastName,
-          email: userData.email
+          firstName,
+          lastName,
+          email: me.email,
         });
-      } catch (error) {
-        console.error('Failed to load profile:', error);
+      } catch (error: any) {
+        console.error("Failed to load profile:", error);
+        if (error?.message === "Unauthorized") {
+          clearToken();
+          router.push("/signin");
+        } else {
+          // For now, treat other errors similarly
+          clearToken();
+          router.push("/signin");
+        }
       } finally {
         setLoading(false);
       }
     }
+
     loadProfile();
-    */
-  }, []);
+  }, [router]);
 
   const handleSave = async () => {
-    // TODO: Implement save functionality
-    setUser(prev => prev ? {
-      ...prev,
-      firstName: editForm.firstName,
-      lastName: editForm.lastName,
-      email: editForm.email
-    } : null);
+    // Currently no backend route for updating profile – keep changes local.
+    setUser((prev) =>
+      prev
+        ? {
+            ...prev,
+            firstName: editForm.firstName,
+            lastName: editForm.lastName,
+            email: editForm.email,
+          }
+        : null
+    );
     setIsEditing(false);
-    
-    /* When backend is ready:
+
+    /* When backend update profile endpoint exists:
     try {
-      await updateProfile(editForm);
-      setUser(prev => prev ? {...prev, ...editForm} : null);
+      await updateProfile({
+        name: `${editForm.firstName} ${editForm.lastName}`.trim(),
+        email: editForm.email,
+      });
+      setUser(prev => prev ? {
+        ...prev,
+        firstName: editForm.firstName,
+        lastName: editForm.lastName,
+        email: editForm.email
+      } : null);
       setIsEditing(false);
     } catch (error) {
-      console.error('Failed to update profile:', error);
+      console.error("Failed to update profile:", error);
     }
     */
   };
 
   const handleLogout = () => {
-    // TODO: Implement logout
-    // clearToken();
-    router.push('/');
+    clearToken();
+    setUser(null);
+    router.push("/signin");
   };
 
   if (loading) {
@@ -127,10 +213,14 @@ export default function ProfilePage() {
         </div>
         <div className="relative z-10 text-center px-8">
           <div className="text-6xl mb-6">🔒</div>
-          <h2 className="text-3xl font-bold text-white mb-4">Please Sign In</h2>
-          <p className="text-cyan-200 mb-8">You need to be logged in to view your profile</p>
+          <h2 className="text-3xl font-bold text-white mb-4">
+            Please Sign In
+          </h2>
+          <p className="text-cyan-200 mb-8">
+            You need to be logged in to view your profile
+          </p>
           <Link
-            href="/login"
+            href="/signin"
             className="inline-block bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-8 rounded-lg transition-all"
           >
             Go to Login
@@ -151,14 +241,26 @@ export default function ProfilePage() {
       <div className="relative z-10 min-h-screen">
         {/* Header */}
         <header className="px-8 md:px-16 lg:px-24 py-8">
-          <Link 
+          <Link
             href="/"
             className="inline-flex items-center gap-2 text-cyan-300/80 hover:text-cyan-200 transition-colors group"
           >
-            <svg className="w-5 h-5 transition-transform group-hover:-translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            <svg
+              className="w-5 h-5 transition-transform group-hover:-translate-x-1"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
             </svg>
-            <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">Back to Home</span>
+            <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">
+              Back to Home
+            </span>
           </Link>
         </header>
 
@@ -169,15 +271,20 @@ export default function ProfilePage() {
             <div className="flex items-center gap-6 mb-6 md:mb-0">
               {/* Avatar */}
               <div className="w-24 h-24 rounded-full bg-gradient-to-br from-cyan-400 to-teal-400 flex items-center justify-center text-4xl font-bold text-white shadow-lg">
-                {user.firstName[0]}{user.lastName[0]}
+                {user.firstName[0]}
+                {user.lastName[0] || ""}
               </div>
-              
+
               <div>
                 <h1 className="text-4xl font-bold text-white mb-2 font-[family-name:var(--font-space-grotesk)]">
                   {user.firstName} {user.lastName}
                 </h1>
                 <p className="text-cyan-200/80 font-[family-name:var(--font-ibm-plex-mono)]">
-                  Member since {new Date(user.joinedDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  Member since{" "}
+                  {new Date(user.joinedDate).toLocaleDateString("en-US", {
+                    month: "long",
+                    year: "numeric",
+                  })}
                 </p>
               </div>
             </div>
@@ -211,14 +318,16 @@ export default function ProfilePage() {
             <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
-                  Adherence
+                  Adherence (7 days)
                 </span>
                 <span className="text-3xl">📊</span>
               </div>
               <div className="text-4xl font-bold text-white mb-1">
                 {user.adherenceRate || 0}%
               </div>
-              <p className="text-cyan-200/70 text-sm">Overall compliance</p>
+              <p className="text-cyan-200/70 text-sm">
+                Days with at least one dose
+              </p>
             </div>
 
             {/* Total Doses */}
@@ -248,8 +357,18 @@ export default function ProfilePage() {
                     onClick={() => setIsEditing(true)}
                     className="text-cyan-400 hover:text-cyan-300 transition-colors"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
                     </svg>
                   </button>
                 )}
@@ -264,7 +383,12 @@ export default function ProfilePage() {
                     <input
                       type="text"
                       value={editForm.firstName}
-                      onChange={(e) => setEditForm({...editForm, firstName: e.target.value})}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          firstName: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
                     />
                   </div>
@@ -276,7 +400,12 @@ export default function ProfilePage() {
                     <input
                       type="text"
                       value={editForm.lastName}
-                      onChange={(e) => setEditForm({...editForm, lastName: e.target.value})}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          lastName: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
                     />
                   </div>
@@ -288,7 +417,12 @@ export default function ProfilePage() {
                     <input
                       type="email"
                       value={editForm.email}
-                      onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                      onChange={(e) =>
+                        setEditForm({
+                          ...editForm,
+                          email: e.target.value,
+                        })
+                      }
                       className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white focus:outline-none focus:border-cyan-400"
                     />
                   </div>
@@ -306,7 +440,7 @@ export default function ProfilePage() {
                         setEditForm({
                           firstName: user.firstName,
                           lastName: user.lastName,
-                          email: user.email
+                          email: user.email,
                         });
                       }}
                       className="px-6 py-3 border border-cyan-400/50 text-cyan-300 hover:bg-cyan-900/20 rounded-lg transition-colors"
@@ -337,7 +471,9 @@ export default function ProfilePage() {
                     <span className="text-cyan-300/60 text-sm uppercase tracking-wider font-[family-name:var(--font-ibm-plex-mono)]">
                       User ID
                     </span>
-                    <p className="text-cyan-300/70 text-sm mt-1 font-mono">{user.id}</p>
+                    <p className="text-cyan-300/70 text-sm mt-1 font-mono">
+                      {user.id}
+                    </p>
                   </div>
                 </div>
               )}
@@ -358,8 +494,18 @@ export default function ProfilePage() {
                   className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-6 rounded-lg transition-all"
                 >
                   <span>Open Tracker</span>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5l7 7-7 7"
+                    />
                   </svg>
                 </Link>
               </div>
@@ -375,8 +521,18 @@ export default function ProfilePage() {
                     className="flex items-center justify-between p-3 rounded-lg border border-cyan-400/30 hover:border-cyan-400/60 hover:bg-cyan-900/20 transition-all group"
                   >
                     <span className="text-cyan-100">Drug Information</span>
-                    <svg className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <svg
+                      className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
                     </svg>
                   </Link>
 
@@ -384,9 +540,21 @@ export default function ProfilePage() {
                     href="/interactions"
                     className="flex items-center justify-between p-3 rounded-lg border border-cyan-400/30 hover:border-cyan-400/60 hover:bg-cyan-900/20 transition-all group"
                   >
-                    <span className="text-cyan-100">Interaction Checker</span>
-                    <svg className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <span className="text-cyan-100">
+                      Interaction Checker
+                    </span>
+                    <svg
+                      className="w-5 h-5 text-cyan-400 transition-transform group-hover:translate-x-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M9 5l7 7-7 7"
+                      />
                     </svg>
                   </Link>
 
@@ -395,8 +563,18 @@ export default function ProfilePage() {
                     className="w-full flex items-center justify-between p-3 rounded-lg border border-red-400/30 hover:border-red-400/60 hover:bg-red-900/20 transition-all text-red-300 group"
                   >
                     <span>Logout</span>
-                    <svg className="w-5 h-5 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    <svg
+                      className="w-5 h-5 transition-transform group-hover:translate-x-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                      />
                     </svg>
                   </button>
                 </div>

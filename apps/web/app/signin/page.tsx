@@ -1,34 +1,38 @@
 // app/signin/page.tsx
 
-'use client';
+"use client";
 
-import { useState } from 'react';
-import Link from 'next/link';
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { login } from "@/lib/api";
+import { setToken, clearToken } from "@/lib/auth";
 
 export default function SignInPage() {
+  const router = useRouter();
+
   const [formData, setFormData] = useState({
-    email: '',
-    password: '',
+    email: "",
+    password: "",
   });
 
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [signInSuccess, setSignInSuccess] = useState(false);
 
   const validateForm = () => {
     const newErrors: { [key: string]: string } = {};
 
     // Email
     if (!formData.email.trim()) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Please enter a valid email address';
+      newErrors.email = "Please enter a valid email address";
     }
 
     // Password
     if (!formData.password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = "Password is required";
     }
 
     setErrors(newErrors);
@@ -41,47 +45,46 @@ export default function SignInPage() {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
+    // clear any previous general error
+    setErrors((prev) => {
+      const { general, ...rest } = prev;
+      return rest;
+    });
 
-    // TODO: Replace with real sign-in API call when backend is ready
-    setTimeout(() => {
-      console.log('Sign in data:', {
-        email: formData.email,
-      });
-
-      setIsSubmitting(false);
-      setSignInSuccess(true);
-
-      // Reset form
-      setFormData({
-        email: '',
-        password: '',
-      });
-    }, 1500);
-
-    /*
     try {
-      const response = await fetch('/api/auth/signin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      if (response.ok) {
-        setSignInSuccess(true);
-        // Redirect to dashboard or home
-      } else {
-        const error = await response.json();
-        setErrors({ general: error.message });
+      const resp: any = await login(formData.email, formData.password);
+      // backend should return { access_token, token_type, ... }
+      if (!resp || !resp.access_token) {
+        throw new Error("No access token returned from server");
       }
-    } catch (error) {
-      setErrors({ general: 'Failed to sign in. Please try again.' });
+
+      // Save JWT for future requests
+      setToken(resp.access_token);
+
+      // Optional: you can also store basic user info from resp.user if you return it
+      // localStorage.setItem("phairm_user", JSON.stringify(resp.user));
+
+      // Redirect to profile (or tracker/home if you prefer)
+      router.push("/profile");
+    } catch (err: any) {
+      console.error("Login failed:", err);
+      clearToken();
+
+      const msg =
+        err?.status === 401 ||
+        err?.message === "Unauthorized" ||
+        (typeof err?.message === "string" &&
+          err.message.toLowerCase().includes("401"))
+          ? "Invalid email or password. Please try again."
+          : "Failed to sign in. Please try again.";
+
+      setErrors((prev) => ({
+        ...prev,
+        general: msg,
+      }));
     } finally {
       setIsSubmitting(false);
     }
-    */
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -94,37 +97,6 @@ export default function SignInPage() {
       });
     }
   };
-
-  if (signInSuccess) {
-    return (
-      <main className="min-h-screen relative overflow-hidden flex items-center justify-center">
-        {/* Gradient Background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
-          <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
-        </div>
-
-        {/* Success Message */}
-        <div className="relative z-10 text-center px-8">
-          <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-12 max-w-md mx-auto">
-            <div className="text-6xl mb-6">🔓</div>
-            <h2 className="text-3xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
-              Welcome back to PHAIRM
-            </h2>
-            <p className="text-cyan-200 mb-8">
-              You&apos;re signed in (demo state). When authentication is wired up,
-              you&apos;ll be redirected to your dashboard.
-            </p>
-            <Link
-              href="/"
-              className="inline-block bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-8 rounded-lg transition-all duration-200 shadow-lg"
-            >
-              Go to Home
-            </Link>
-          </div>
-        </div>
-      </main>
-    );
-  }
 
   return (
     <main className="min-h-screen relative overflow-hidden">
@@ -161,7 +133,7 @@ export default function SignInPage() {
 
           {/* Optional link to Sign Up */}
           <div className="text-cyan-200/70 text-sm font-[family-name:var(--font-ibm-plex-mono)]">
-            New here?{' '}
+            New here?{" "}
             <Link
               href="/signup"
               className="text-cyan-400 hover:text-cyan-300 underline font-medium"
@@ -200,11 +172,9 @@ export default function SignInPage() {
                   <input
                     type="email"
                     value={formData.email}
-                    onChange={(e) =>
-                      handleInputChange('email', e.target.value)
-                    }
+                    onChange={(e) => handleInputChange("email", e.target.value)}
                     className={`w-full bg-[#1E5A6B]/30 border ${
-                      errors.email ? 'border-red-500' : 'border-cyan-400/40'
+                      errors.email ? "border-red-500" : "border-cyan-400/40"
                     } rounded-md px-4 py-3 text-white placeholder-cyan-300/40 focus:outline-none focus:border-cyan-400 transition-colors`}
                     placeholder="john.doe@example.com"
                   />
@@ -222,13 +192,13 @@ export default function SignInPage() {
                   </label>
                   <div className="relative">
                     <input
-                      type={showPassword ? 'text' : 'password'}
+                      type={showPassword ? "text" : "password"}
                       value={formData.password}
                       onChange={(e) =>
-                        handleInputChange('password', e.target.value)
+                        handleInputChange("password", e.target.value)
                       }
                       className={`w-full bg-[#1E5A6B]/30 border ${
-                        errors.password ? 'border-red-500' : 'border-cyan-400/40'
+                        errors.password ? "border-red-500" : "border-cyan-400/40"
                       } rounded-md px-4 py-3 pr-12 text-white placeholder-cyan-300/40 focus:outline-none focus:border-cyan-400 transition-colors`}
                       placeholder="••••••••"
                     />
@@ -281,11 +251,10 @@ export default function SignInPage() {
                   )}
                 </div>
 
-                {/* Forgot Password / Remember Me (optional small row) */}
+                {/* Little status row */}
                 <div className="flex items-center justify-between text-xs text-cyan-200/70 font-[family-name:var(--font-ibm-plex-mono)]">
                   <span className="opacity-60">
-                    {/* Placeholder – you can turn into a checkbox later */}
-                    Secure login enabled
+                    Your credentials are encrypted in transit
                   </span>
                   <button
                     type="button"
@@ -325,7 +294,7 @@ export default function SignInPage() {
                       VERIFYING...
                     </span>
                   ) : (
-                    'SIGN IN'
+                    "SIGN IN"
                   )}
                 </button>
               </form>
@@ -333,7 +302,7 @@ export default function SignInPage() {
               {/* No account yet */}
               <div className="mt-6 text-center">
                 <p className="text-cyan-200/70 text-sm">
-                  Don&apos;t have an account?{' '}
+                  Don&apos;t have an account?{" "}
                   <Link
                     href="/signup"
                     className="text-cyan-400 hover:text-cyan-300 underline font-medium"
