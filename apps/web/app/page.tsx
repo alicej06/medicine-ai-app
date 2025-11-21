@@ -1,9 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { getDrugById, getExplanation } from '@/lib/api';
-import { Drug, Explanation } from '@/lib/types';
 import Link from 'next/link';
 
 
@@ -26,6 +22,23 @@ export default function LandingPage() {
 
       {/* Content Container */}
       <div className="relative z-10 min-h-screen flex flex-col">
+        {/* User Profile Button */}
+        <div className="absolute top-8 right-8 md:top-12 md:right-16 lg:right-24 z-20">
+          <Link
+            href="/profile"
+            className="flex items-center gap-2 px-4 py-2 bg-[#0B1127]/60 backdrop-blur-sm border border-cyan-400/30 rounded-full hover:border-cyan-400/60 hover:bg-cyan-900/20 transition-all group"
+          >
+            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-400 to-teal-400 flex items-center justify-center">
+              <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
+            </div>
+            <span className="text-cyan-200 text-sm font-medium group-hover:text-cyan-100 transition-colors hidden md:inline">
+              Profile
+            </span>
+          </Link>
+        </div>
+
         {/* Main Content */}
         <div className="flex-1 flex flex-col items-start justify-center px-10 md:px-20 lg:px-28 py-16">
           {/* Logo & Title Section */}
@@ -35,15 +48,15 @@ export default function LandingPage() {
               <img 
                 src="/phairm-logo.png" 
                 alt="PHAIRM Logo"
-                className="w-[120px] h-[120px] object-contain"
+                className="w-[72px] h-[72px] object-contain"
               />
               
-              <h1 className="text-[6.5rem] leading-none font-bold text-white tracking-[0.02em] -ml-1">
+              <h1 className="text-[6.5rem] leading-none font-bold text-white tracking-[0.02em] -ml-1 font-[family-name:var(--font-space-grotesk)]">
                 PHAIRM
               </h1>
             </div>
             
-            <p className="text-[#A0E7DD] text-[15px] tracking-[0.25em] uppercase font-light pl-1">
+            <p className="text-[#A0E7DD] text-[15px] tracking-[0.25em] uppercase font-light pl-1 font-[family-name:var(--font-ibm-plex-mono)]">
               MEDICINE INTERACTION CHECKER
             </p>
           </div>
@@ -71,7 +84,7 @@ export default function LandingPage() {
                   ${hoveredButton === button.id ? 'border-[#4DD4C0]/80 bg-[#1E5A6B]/20' : ''}
                 `}>
                   <div className="flex items-center justify-between">
-                    <span className="text-[#C5F5ED] text-[17px] font-normal tracking-[0.15em] uppercase">
+                    <span className="text-[#C5F5ED] text-[17px] font-normal tracking-[0.15em] uppercase font-[family-name:var(--font-ibm-plex-mono)]">
                       {button.label}
                     </span>
                     <svg 
@@ -94,19 +107,10 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Disclaimer */}
-        <div className="mt-8 p-4 bg-gray-100 border border-gray-300 rounded-lg">
-          <p className="text-sm text-gray-600 text-center">
-            ⚕️ <span className="font-semibold">Medical Disclaimer:</span> This information is for educational purposes only. 
-            Always consult with a healthcare professional before starting or changing any medication.
-          </p>
-        </div>
-
-        
         {/* Footer */}
         <footer className="pb-10 px-10 md:px-20 lg:px-28">
           <a 
-            href="https://instagram.com/phairm_maia_biotech" 
+            href="https://instagram.com/maia_biotech.phairm" 
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-3 text-[#4DD4C0]/70 hover:text-[#4DD4C0] transition-colors group"
@@ -118,8 +122,8 @@ export default function LandingPage() {
             >
               <path d="M12 2.163c..."/>
             </svg>
-            <span className="text-[15px] group-hover:underline">
-              phairm_maia_biotech
+            <span className="text-[15px] group-hover:underline font-[family-name:var(--font-ibm-plex-mono)]">
+              maia_biotech.phairm
             </span>
           </a>
         </footer>
