@@ -57,3 +57,28 @@ def interactions(payload: InteractionsIn, db: Session = Depends(get_db)):
         "citations": [{"id": "d1", "source": "DailyMed", "section": "Drug Interactions", "snippet": "..."}],
         "disclaimer": "Educational use only. Not medical advice.",
     }
+
+@router.get("/interactions/{rx_cui}")
+def get_interactions_for_drug(rx_cui: str, db: Session = Depends(get_db)):
+    """
+    Return all interaction rules where this drug is the 'source' (a_rx_cui).
+    Used by your Next.js interactions page.
+    """
+    rules = (
+        db.query(InteractionRule)
+        .filter(InteractionRule.a_rx_cui == rx_cui)
+        .all()
+    )
+
+    # FastAPI will JSON-encode whatever we return.
+    return [
+        {
+            "id": r.id,
+            "a_rx_cui": r.a_rx_cui,
+            "b_rx_cui": r.b_rx_cui,
+            "severity": r.severity,
+            "mechanism": r.mechanism,
+            "guidance": r.guidance,
+        }
+        for r in rules
+    ]

@@ -25,15 +25,16 @@ class Drug(Base):
 class InteractionRule(Base):
     __tablename__ = "interaction_rule"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement = True)
-    # the two drugs involved in the interaction (stored by RxCUI)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+
+    # the two drugs involved in the interaction (stored by RxCUI or name for now)
     a_rx_cui: Mapped[str] = mapped_column(String, index=True)
     b_rx_cui: Mapped[str] = mapped_column(String, index=True)
 
     severity: Mapped[str] = mapped_column(String)
     mechanism: Mapped[str] = mapped_column(Text)
     guidance: Mapped[str] = mapped_column(Text)
-    evidence_ids: Mapped[list[str] | None] = mapped_column(ARRAY(String), default=[])
+
 
 
 class LabelChunk(Base):
