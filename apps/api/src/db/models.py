@@ -5,9 +5,12 @@
 # - interaction rule
 # - label chunk
 
-from sqlalchemy import Integer, String, DateTime, Text, func
-from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+import uuid
+from datetime import datetime
+
+from sqlalchemy import Integer, String, Column, DateTime, Text, func, ForeignKey
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.db.base import Base
 class Drug(Base):
@@ -44,3 +47,91 @@ class LabelChunk(Base):
     rx_cui: Mapped[str] = mapped_column(String, index=True)
     section: Mapped[str] = mapped_column(String)
     chunk_text: Mapped[str] = mapped_column(Text)
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        index=True,
+    )
+    email = Column(String(255), unique=True, nullable=False, index=True)
+    hashed_password = Column(String(255), nullable=False)
+    name = Column(String(255), nullable=False)
+    role = Column(String(50), nullable=True)
+
+    created_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+        nullable=False,
+    )
+
+    medications = relationship(
+        "UserMedication",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+    intake_logs = relationship(
+        "MedicationIntakeLog",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
+
+class UserMedication(Base):
+    __tablename__ = "user_medications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    rx_cui = Column(String(50), nullable=False)          # e.g. "8600"
+    display_name = Column(String(255), nullable=False)   # e.g. "Metformin"
+    created_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    user = relationship("User", back_populates="medications")
+    logs = relationship(       
+        "MedicationIntakeLog",
+        back_populates="user_medication",
+        cascade="all, delete-orphan",
+    )
+
+class MedicationIntakeLog(Base):
+    __tablename__ = "medication_intake_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_medication_id = Column(
+        Integer,
+        ForeignKey("user_medications.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    taken_at = Column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+    note = Column(Text, nullable=True)
+
+    user_medication = relationship("UserMedication", back_populates="logs")
+    user = relationship("User", back_populates="intake_logs")
+

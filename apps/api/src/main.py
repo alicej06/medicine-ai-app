@@ -1,8 +1,8 @@
 from fastapi import FastAPI
+from src.routers import health, drug, explain, interactions, auth, medications
 from fastapi.middleware.cors import CORSMiddleware
 
 # these modules live in src/routers/
-from src.routers import health, drug, explain, interactions
 from src.routers.drugs import router as drugs_router  # <-- new line
 
 app = FastAPI()
@@ -17,6 +17,8 @@ app.include_router(interactions.router)
 app.include_router(drugs_router)
 
 # CORS for your Next.js app
+app.include_router(auth.router)
+app.include_router(medications.router)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],

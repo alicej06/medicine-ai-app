@@ -4,6 +4,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { searchDrugs } from '@/lib/api';
+import { Drug } from '@/lib/types';
 
 type InteractionRule = {
   id: number;
