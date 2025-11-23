@@ -223,7 +223,7 @@ export default function ProfilePage() {
             href="/signin"
             className="inline-block bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-3 px-8 rounded-lg transition-all"
           >
-            Go to Login
+            Go to Sign In
           </Link>
         </div>
       </main>

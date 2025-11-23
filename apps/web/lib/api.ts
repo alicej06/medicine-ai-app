@@ -5,7 +5,6 @@ import { getToken, clearToken } from "./auth";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-// Generic helper that automatically adds Authorization header if token exists
 async function api(path: string, options: RequestInit = {}) {
   const token = getToken();
 
@@ -27,32 +26,27 @@ async function api(path: string, options: RequestInit = {}) {
     const text = await res.text().catch(() => "");
 
 
-    // 🔹 Special-case 401 so frontend can react (logout/redirect)
     if (res.status === 401) {
       // Token is missing/invalid/expired
       clearToken();
       const err = new Error("Unauthorized");
-      // @ts-ignore  (optional: add a type later)
+      // @ts-ignore 
       err.status = 401;
       throw err;
     }
     console.error("API error:", res.status, text);
     const err = new Error(`API error ${res.status}`);
-    // @ts-ignore  (optional: add a type later)
+    // @ts-ignore  
     err.status = res.status;
     throw err;
 
   }
 
-  // If there's no body (204, etc.) just return null
   if (res.status === 204) return null;
 
   return res.json();
 }
 
-// =========================
-// Existing drug/search APIs
-// =========================
 
 export async function searchDrugs(
   query: string,
@@ -143,9 +137,6 @@ export async function getExplanation(drugId: string): Promise<Explanation> {
   }
 }
 
-// ====================
-// New auth endpoints
-// ====================
 
 export async function login(email: string, password: string) {
   return api("/auth/login", {
@@ -165,10 +156,6 @@ export async function getMe() {
   return api("/auth/me");
 }
 
-// =======================
-// New medication endpoints
-// =======================
-
 export async function getMyMedications() {
   return api("/me/medications");
 }
@@ -180,9 +167,6 @@ export async function addMedication(rxCui: string, displayName: string) {
   });
 }
 
-// ======================
-// New intake log endpoints
-// ======================
 
 export async function addMedicationLog(medicationId: number) {
   return api(`/me/medications/${medicationId}/log`, {
@@ -193,4 +177,82 @@ export async function addMedicationLog(medicationId: number) {
 
 export async function getMyMedicationLogs(medicationId: number) {
   return api(`/me/medications/${medicationId}/log`);
+}
+
+export interface MedOverviewPerDrug {
+  medicationId: number;
+  name: string;
+  rxCui?: string | null;
+  summary: string;
+  usedCitationIds: number[];
+}
+
+export interface MedOverviewCitation {
+  id: number;
+  rxCui?: string | null;
+  section?: string | null;
+  sourceUrl?: string | null;
+  snippet: string;
+  used: boolean;
+}
+
+export interface MedListOverview {
+  overviewBullets: string[];
+  perDrug: MedOverviewPerDrug[];
+  citations: MedOverviewCitation[];
+  usedCitationIds: number[];
+  disclaimer: string;
+}
+
+export async function getMedListOverview(): Promise<MedListOverview> {
+  const res = await fetch(
+    `${process.env.NEXT_PUBLIC_API_URL}/me/medications/overview`,
+    {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    throw new Error(`Med list overview failed: ${res.status}`);
+  }
+
+  return res.json();
+}
+
+export interface ParsedPillLabel {
+  drugName: string | null;
+  strength: string | null;
+  rawSig: string | null;
+  directionsSummary: string | null;
+  notes: string | null;
+  confidence: number | null;
+}
+
+function getAuthHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+
+
+export async function parsePillLabel(ocrText: string): Promise<ParsedPillLabel> {
+  const res = await fetch(`${API_BASE}/ai/parse-pill-label`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...getAuthHeaders(),
+    },
+    body: JSON.stringify({ ocrText }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`parsePillLabel failed: ${res.status}`);
+  }
+
+  return res.json();
 }

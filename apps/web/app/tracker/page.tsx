@@ -10,6 +10,9 @@ import {
   addMedication,
   addMedicationLog,
   getMyMedicationLogs,
+  getMedListOverview,
+  MedListOverview,
+  ParsedPillLabel,
 } from "@/lib/api";
 import {
   BarChart,
@@ -19,6 +22,7 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
+import PillLabelScan from "@/components/PillLabelScan";
 
 interface Medication {
   id: number; // backend user_medications.id
@@ -451,7 +455,6 @@ export default function TrackerPage() {
       const stats = summarizeLogs(logs, daysWindow);
       bestStreak = Math.max(bestStreak, stats.streak);
 
-      // union of doses per day
       logs.forEach((log) => {
         const d = new Date(log.taken_at);
         if (d >= start && d <= now) {
@@ -555,6 +558,21 @@ export default function TrackerPage() {
   const detailStats7 = summarizeLogs(detailLogs, 7);
   const detailStats30 = summarizeLogs(detailLogs, 30);
 
+  const [overview, setOverview] = useState<MedListOverview | null>(null);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+
+  const loadOverview = async () => {
+    setLoadingOverview(true);
+    try {
+      const data = await getMedListOverview();
+      setOverview(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingOverview(false);
+    }
+  };
+
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Gradient Background */}
@@ -634,6 +652,81 @@ export default function TrackerPage() {
               </button>
             </div>
 
+            {/* AI Med List Overview Section */}
+            <section className="bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg p-6 space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                  <h2 className="text-xl font-bold text-white font-[family-name:var(--font-space-grotesk)]">
+                    AI overview of your med list
+                  </h2>
+                  <p className="text-sm text-cyan-200/80 font-[family-name:var(--font-ibm-plex-mono)]">
+                    Let PHAIRM scan your current medications and give a
+                    plain-language summary of what they&apos;re doing together.
+                  </p>
+                </div>
+                <button
+                  onClick={loadOverview}
+                  className="inline-flex items-center gap-2 bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-semibold py-2.5 px-4 rounded-lg text-sm transition-all duration-200 shadow-md hover:shadow-cyan-500/40"
+                >
+                  {loadingOverview ? (
+                    <>
+                      <svg
+                        className="h-4 w-4 animate-spin"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                        ></path>
+                      </svg>
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <span>Explain my med list</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {overview && (
+                <div className="mt-2 bg-[#020617]/40 border border-cyan-400/20 rounded-lg p-4">
+                  <h3 className="text-lg text-white mb-2 font-[family-name:var(--font-space-grotesk)]">
+                    Your Med List Overview
+                  </h3>
+                  <ul className="list-disc list-inside text-cyan-100 mb-3 space-y-1">
+                    {overview.overviewBullets.map((b, i) => (
+                      <li key={i}>{b}</li>
+                    ))}
+                  </ul>
+                  <div className="space-y-2">
+                    {overview.perDrug.map((d) => (
+                      <div
+                        key={d.medicationId}
+                        className="text-sm text-cyan-200"
+                      >
+                        <span className="font-semibold">{d.name}:</span>{" "}
+                        {d.summary}
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-cyan-300/60 mt-3">
+                    {overview.disclaimer}
+                  </p>
+                </div>
+              )}
+            </section>
+
             {/* Quick Overview Cards */}
             {!loading && medications.length > 0 && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -710,6 +803,24 @@ export default function TrackerPage() {
                     }
                     placeholder="e.g., Lisinopril"
                     className="w-full bg-[#1E5A6B]/30 border border-cyan-400/40 rounded-md px-4 py-3 text-white placeholder-cyan-300/40 focus:outline-none focus:border-cyan-400 transition-colors"
+                  />
+                </div>
+
+                {/* Pill Label Scan (AI + OCR) */}
+                <div className="border border-cyan-400/30 rounded-lg bg-[#020617]/40">
+                  <PillLabelScan
+                    onApply={(parsed: ParsedPillLabel) => {
+                      setFormData((prev) => ({
+                        ...prev,
+                        name: parsed.drugName || prev.name,
+                        dosage: parsed.strength || prev.dosage,
+                        notes: parsed.directionsSummary
+                          ? `${parsed.directionsSummary}${
+                              prev.notes ? "\n\n" + prev.notes : ""
+                            }`
+                          : prev.notes,
+                      }));
+                    }}
                   />
                 </div>
 
@@ -1264,7 +1375,8 @@ export default function TrackerPage() {
                     <XAxis dataKey="date" />
                     <YAxis allowDecimals={false} />
                     <Tooltip />
-                    <Bar dataKey="doses" />
+                    {/* Cyan bar so it shows up on dark bg */}
+                    <Bar dataKey="doses" fill="#22d3ee" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -1384,7 +1496,12 @@ export default function TrackerPage() {
                               year: "numeric",
                             })}
                           </div>
-                          <div>{d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</div>
+                          <div>
+                            {d.toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </div>
                         </div>
                       );
                     })}

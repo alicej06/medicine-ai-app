@@ -1,6 +1,9 @@
 # apps/api/src/services/llm/explainer.py
 import os, json, re
 from typing import List, Dict
+import logging
+from ..retrieval.retrieve import retrieve_with_citations
+logger = logging.getLogger(__name__)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
@@ -28,6 +31,42 @@ INSTRUCTIONS:
 - Use context verbatim for facts; do not invent.
 - Refer to citations by [C{{i}}] indices (we will map them).
 - Return JSON: {{"bullets": string[], "used_citation_ids": number[]}} ONLY.
+"""
+
+SYSTEM_MED_LIST = """
+You are a medical explanation assistant for consumers.
+
+Requirements:
+- Explain in plain language at about an 8th-grade reading level.
+- Summarize ONLY from the provided CONTEXT; if something is unknown, say so.
+- Do NOT give dosing instructions, do NOT tell the user to change how they take their medication.
+- Focus on what the medicines do overall, what conditions they treat, and major safety themes.
+- Be concise and organized.
+
+Output MUST be valid JSON with this structure:
+
+{
+  "overview_bullets": [
+    "Overall, your medicines help with ...",
+    "...",
+    "..."
+  ],
+  "per_drug": [
+    {
+      "medication_id": 1,
+      "name": "Lisinopril",
+      "summary": "Short plain-language summary of what this drug does for the user.",
+      "used_citation_ids": [1, 3]
+    },
+    {
+      "medication_id": 2,
+      "name": "Metformin",
+      "summary": "...",
+      "used_citation_ids": [4]
+    }
+  ],
+  "used_citation_ids": [1, 3, 4]
+}
 """
 
 _JSON_BLOCK = re.compile(r"\{[\s\S]*\}")
@@ -202,3 +241,112 @@ def explain_with_llm(drug: str, question: str, citations: List[Dict]) -> Dict:
         return _gemini_generate(prompt)
 
     return _hf_generate(prompt)
+
+def build_med_list_context(medications: List[Dict[str, any]], citations: List[Dict[str, any]]) -> str:
+    """
+    Build a text context block listing the user's meds and citations.
+
+    medications: [
+      {"id": 1, "name": "Lisinopril", "rx_cui": "123"},
+      ...
+    ]
+
+    citations: [
+      {"id": 1, "rx_cui": "...", "section": "...", "snippet": "...", "drug_name": "..."},
+      ...
+    ]
+    """
+    lines = []
+    lines.append("PATIENT MEDICATION LIST:")
+    for m in medications:
+        lines.append(f"- [{m['id']}] {m['name']} (rx_cui={m.get('rx_cui')})")
+    lines.append("")
+    lines.append("CONTEXT (citations):")
+    for c in citations:
+        cid = c["id"]
+        section = c.get("section") or "Unknown section"
+        rx_cui = c.get("rx_cui")
+        drug_name = c.get("drug_name") or ""
+        header = f"[C{cid}] ({drug_name or rx_cui} – {section})"
+        snippet = c.get("snippet") or ""
+        lines.append(f"{header}: {snippet}")
+    return "\n".join(lines)
+
+
+def explain_med_list_with_llm(
+    medications: List[Dict[str, any]],
+    citations: List[Dict[str, any]],
+) -> Dict[str, any]:
+    """
+    Call the LLM to generate an overview of the user's med list, using the
+    provided list of medications and citations.
+
+    Returns a dict matching MedListOverviewResponse (field names pre-alias):
+    {
+      "overview_bullets": [...],
+      "per_drug": [
+        {
+          "medication_id": int,
+          "name": str,
+          "summary": str,
+          "used_citation_ids": [int, ...]
+        },
+        ...
+      ],
+      "used_citation_ids": [int, ...]
+    }
+    """
+    from ..core.config import settings
+    from google import generativeai as genai  # assuming you're already using this
+
+    context_text = build_med_list_context(medications, citations)
+
+    user_prompt = f"""
+You are given a patient's medication list and contextual snippets from trusted drug information sources.
+
+{context_text}
+
+TASK:
+- Provide 3–6 short bullets explaining what this combination of medicines is doing overall for the patient.
+- Group medicines by what they treat (e.g., blood pressure, diabetes, cholesterol) in your wording.
+- Mention major safety themes only at a high level (e.g., "may cause dizziness" or "can affect blood sugar"), without giving specific dosing instructions.
+- For each individual drug, provide a 1–2 sentence summary in plain language.
+- ONLY use information that is explicit or strongly implied in the context.
+
+Remember: Output MUST be valid JSON and match the schema in the instructions.
+"""
+
+    # Configure Gemini client (same pattern as explain_with_llm)
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    model = genai.GenerativeModel(
+        model_name=settings.GEMINI_MODEL,
+        system_instruction=SYSTEM_MED_LIST,
+        generation_config={"response_mime_type": "application/json"},
+    )
+
+    try:
+        response = model.generate_content(user_prompt)
+        raw = response.text or "{}"
+        data = json.loads(raw)
+
+        # Basic normalization
+        overview = data.get("overview_bullets") or []
+        per_drug = data.get("per_drug") or []
+        used_ids = data.get("used_citation_ids") or []
+
+        return {
+            "overview_bullets": overview,
+            "per_drug": per_drug,
+            "used_citation_ids": used_ids,
+        }
+    except Exception as e:
+        logger.exception("Failed to generate med list overview with LLM: %s", e)
+        # Fallback: simple message
+        return {
+            "overview_bullets": [
+                "We could not generate an overview of your medications right now.",
+                "Please try again later.",
+            ],
+            "per_drug": [],
+            "used_citation_ids": [],
+        }
