@@ -1,317 +1,96 @@
-// app/signin/page.tsx
+'use client';
 
-"use client";
-
-import { useState } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { login } from "@/lib/api";
-import { setToken, clearToken } from "@/lib/auth";
+import React, { useState } from 'react';
+import Link from 'next/link';
+import { Eye, EyeOff } from 'lucide-react';
 
 export default function SignInPage() {
-  const router = useRouter();
-
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
-  const [errors, setErrors] = useState<{ [key: string]: string }>({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  // State to handle password visibility
   const [showPassword, setShowPassword] = useState(false);
 
-  const validateForm = () => {
-    const newErrors: { [key: string]: string } = {};
-
-    // Email
-    if (!formData.email.trim()) {
-      newErrors.email = "Email is required";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = "Please enter a valid email address";
-    }
-
-    // Password
-    if (!formData.password) {
-      newErrors.password = "Password is required";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
-
-    setIsSubmitting(true);
-    // clear any previous general error
-    setErrors((prev) => {
-      const { general, ...rest } = prev;
-      return rest;
-    });
-
-    try {
-      const resp: any = await login(formData.email, formData.password);
-      // backend should return { access_token, token_type, ... }
-      if (!resp || !resp.access_token) {
-        throw new Error("No access token returned from server");
-      }
-
-      // Save JWT for future requests
-      setToken(resp.access_token);
-
-      // Optional: you can also store basic user info from resp.user if you return it
-      // localStorage.setItem("phairm_user", JSON.stringify(resp.user));
-
-      // Redirect to profile (or tracker/home if you prefer)
-      router.push("/profile");
-    } catch (err: any) {
-      console.error("Login failed:", err);
-      clearToken();
-
-      const msg =
-        err?.status === 401 ||
-        err?.message === "Unauthorized" ||
-        (typeof err?.message === "string" &&
-          err.message.toLowerCase().includes("401"))
-          ? "Invalid email or password. Please try again."
-          : "Failed to sign in. Please try again.";
-
-      setErrors((prev) => ({
-        ...prev,
-        general: msg,
-      }));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleInputChange = (field: string, value: string) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
-      setErrors((prev) => {
-        const newErrors = { ...prev };
-        delete newErrors[field];
-        return newErrors;
-      });
-    }
-  };
-
   return (
-    <main className="min-h-screen relative overflow-hidden">
-      {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
-        <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
+    <main className="min-h-screen relative flex flex-col items-center justify-center p-4">
+      {/* Background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E] z-0">
+        <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent" />
       </div>
 
       {/* Content */}
-      <div className="relative z-10 min-h-screen">
+      <div className="relative z-10 w-full max-w-md">
+        
         {/* Header */}
-        <header className="px-8 md:px-16 lg:px-24 py-8 flex items-center justify-between">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-cyan-300/80 hover:text-cyan-200 transition-colors group"
-          >
-            <svg
-              className="w-5 h-5 transition-transform group-hover:-translate-x-1"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
+        <div className="text-center mb-8">
+          <h1 className="text-5xl font-bold text-white mb-3 font-[family-name:var(--font-space-grotesk)]">
+            Sign In
+          </h1>
+          <p className="text-cyan-100/80 font-[family-name:var(--font-ibm-plex-mono)]">
+            Access your PHAIRM account
+          </p>
+        </div>
+
+        {/* The Card */}
+        <div className="bg-[#0B1127]/60 backdrop-blur-md border border-cyan-400/20 rounded-2xl p-8 shadow-2xl">
+          <form className="space-y-6">
+            
+            {/* Email Input */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-cyan-200 tracking-wider uppercase font-[family-name:var(--font-ibm-plex-mono)]">
+                Email Address *
+              </label>
+              <input 
+                type="email" 
+                placeholder="john.doe@example.com"
+                className="w-full bg-[#16203A]/80 border border-cyan-400/30 rounded-lg p-3 text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all"
               />
-            </svg>
-            <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">
-              Back to Home
-            </span>
-          </Link>
-
-          {/* Optional link to Sign Up */}
-          <div className="text-cyan-200/70 text-sm font-[family-name:var(--font-ibm-plex-mono)]">
-            New here?{" "}
-            <Link
-              href="/signup"
-              className="text-cyan-400 hover:text-cyan-300 underline font-medium"
-            >
-              Create an account
-            </Link>
-          </div>
-        </header>
-
-        {/* Main Content */}
-        <div className="flex items-center justify-center px-8 pb-20">
-          <div className="w-full max-w-md">
-            {/* Title */}
-            <div className="text-center mb-8">
-              <h1 className="text-5xl font-bold text-white mb-4 font-[family-name:var(--font-space-grotesk)]">
-                Sign In
-              </h1>
-              <p className="text-cyan-200/80 font-[family-name:var(--font-ibm-plex-mono)]">
-                Access your PHAIRM account
-              </p>
             </div>
 
-            {/* Sign In Form */}
-            <div className="bg-[#0B1127]/80 backdrop-blur-sm border border-cyan-400/30 rounded-lg p-8">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {/* General error */}
-                {errors.general && (
-                  <p className="text-red-400 text-sm mb-2">{errors.general}</p>
-                )}
-
-                {/* Email */}
-                <div>
-                  <label className="block text-cyan-300 text-sm font-medium mb-2 tracking-wider uppercase font-[family-name:var(--font-ibm-plex-mono)]">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) => handleInputChange("email", e.target.value)}
-                    className={`w-full bg-[#1E5A6B]/30 border ${
-                      errors.email ? "border-red-500" : "border-cyan-400/40"
-                    } rounded-md px-4 py-3 text-white placeholder-cyan-300/40 focus:outline-none focus:border-cyan-400 transition-colors`}
-                    placeholder="john.doe@example.com"
-                  />
-                  {errors.email && (
-                    <p className="text-red-400 text-xs mt-1">
-                      {errors.email}
-                    </p>
-                  )}
-                </div>
-
-                {/* Password */}
-                <div>
-                  <label className="block text-cyan-300 text-sm font-medium mb-2 tracking-wider uppercase font-[family-name:var(--font-ibm-plex-mono)]">
-                    Password *
-                  </label>
-                  <div className="relative">
-                    <input
-                      type={showPassword ? "text" : "password"}
-                      value={formData.password}
-                      onChange={(e) =>
-                        handleInputChange("password", e.target.value)
-                      }
-                      className={`w-full bg-[#1E5A6B]/30 border ${
-                        errors.password ? "border-red-500" : "border-cyan-400/40"
-                      } rounded-md px-4 py-3 pr-12 text-white placeholder-cyan-300/40 focus:outline-none focus:border-cyan-400 transition-colors`}
-                      placeholder="••••••••"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-4 top-1/2 -translate-y-1/2 text-cyan-300/60 hover:text-cyan-300"
-                    >
-                      {showPassword ? (
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-                          />
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-                          />
-                        </svg>
-                      ) : (
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
-                          />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                  {errors.password && (
-                    <p className="text-red-400 text-xs mt-1">
-                      {errors.password}
-                    </p>
-                  )}
-                </div>
-
-                {/* Little status row */}
-                <div className="flex items-center justify-between text-xs text-cyan-200/70 font-[family-name:var(--font-ibm-plex-mono)]">
-                  <span className="opacity-60">
-                    Your credentials are encrypted in transit
-                  </span>
-                  <button
-                    type="button"
-                    className="text-cyan-400 hover:text-cyan-300 underline"
-                  >
-                    Forgot password?
-                  </button>
-                </div>
-
-                {/* Submit Button */}
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed text-white font-semibold py-4 px-6 rounded-lg transition-all duration-200 shadow-lg hover:shadow-cyan-500/50 font-[family-name:var(--font-ibm-plex-mono)] tracking-wider"
+            {/* Password Input */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-cyan-200 tracking-wider uppercase font-[family-name:var(--font-ibm-plex-mono)]">
+                Password *
+              </label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? "text" : "password"} 
+                  placeholder="••••••••"
+                  className="w-full bg-[#16203A]/80 border border-cyan-400/30 rounded-lg p-3 text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400 transition-all pr-10"
+                />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-3.5 text-slate-400 hover:text-white transition-colors"
                 >
-                  {isSubmitting ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <svg
-                        className="animate-spin h-5 w-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                      >
-                        <circle
-                          className="opacity-25"
-                          cx="12"
-                          cy="12"
-                          r="10"
-                          stroke="currentColor"
-                          strokeWidth="4"
-                        ></circle>
-                        <path
-                          className="opacity-75"
-                          fill="currentColor"
-                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                        ></path>
-                      </svg>
-                      VERIFYING...
-                    </span>
-                  ) : (
-                    "SIGN IN"
-                  )}
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                 </button>
-              </form>
-
-              {/* No account yet */}
-              <div className="mt-6 text-center">
-                <p className="text-cyan-200/70 text-sm">
-                  Don&apos;t have an account?{" "}
-                  <Link
-                    href="/signup"
-                    className="text-cyan-400 hover:text-cyan-300 underline font-medium"
-                  >
-                    Create one
-                  </Link>
-                </p>
               </div>
             </div>
+
+            {/* Footer Links - UPDATED HERE */}
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>Your credentials are encrypted in transit</span>
+              <Link 
+                href="/forgot-password" 
+                className="text-cyan-400 underline decoration-cyan-400/50 hover:text-cyan-100 hover:decoration-cyan-100 transition-colors"
+              >
+                Forgot password?
+              </Link>
+            </div>
+
+            {/* Sign In Button */}
+            <button 
+              type="submit"
+              className="w-full bg-gradient-to-r from-cyan-500 to-teal-500 hover:from-cyan-400 hover:to-teal-400 text-white font-bold py-3.5 rounded-lg shadow-lg shadow-cyan-900/20 transition-all uppercase tracking-wide"
+            >
+              Sign In
+            </button>
+          </form>
+
+          {/* Sign Up Link */}
+          <div className="mt-8 text-center text-sm text-slate-300">
+            Don't have an account?{' '}
+            <Link href="/signup" className="text-cyan-400 hover:text-cyan-300 underline font-medium">
+              Create one
+            </Link>
           </div>
         </div>
       </div>
