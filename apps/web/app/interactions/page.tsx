@@ -107,8 +107,8 @@ export default function InteractionsPage() {
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-[#0a0e27] via-[#1a4b5c] to-[#2d7a7a]">
-      <div className="container mx-auto px-4 py-12">
-        <Link
+      <div className="container mx-auto px-4 py-25">
+        {/* <Link
           href="/"
           className="inline-flex items-center gap-2 text-cyan-300 hover:text-cyan-200 mb-8"
         >
@@ -126,7 +126,7 @@ export default function InteractionsPage() {
             />
           </svg>
           Back to Home
-        </Link>
+        </Link> */}
 
         <div className="max-w-2xl mx-auto bg-white/5 backdrop-blur-xl rounded-2xl p-8 shadow-xl border border-white/10">
           <h1 className="text-3xl md:text-4xl font-bold text-white mb-4 text-center">

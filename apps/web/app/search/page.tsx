@@ -70,8 +70,8 @@ export default function SearchPage() {
       {/* Content */}
       <div className="relative z-10 min-h-screen">
         {/* Header */}
-        <header className="px-8 md:px-16 lg:px-24 py-8">
-          <Link 
+        <header className="px-8 md:px-16 lg:px-24 py-15">
+          {/* <Link 
             href="/"
             className="inline-flex items-center gap-2 text-cyan-300/80 hover:text-cyan-200 transition-colors group"
           >
@@ -79,7 +79,7 @@ export default function SearchPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">Back to Home</span>
-          </Link>
+          </Link> */}
         </header>
 
         {/* Main Content */}

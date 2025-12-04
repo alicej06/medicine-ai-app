@@ -576,15 +576,15 @@ export default function TrackerPage() {
   return (
     <main className="min-h-screen relative overflow-hidden">
       {/* Gradient Background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
+      <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#0B1127] via-[#164357] via-[#1E5A6B] to-[#2E8080] to-[#5AAF9E]">
         <div className="absolute inset-0 bg-gradient-to-tl from-[#5AAF9E]/40 via-transparent to-transparent"></div>
       </div>
 
       {/* Content */}
-      <div className="relative z-10 min-h-screen">
+      <div className="relative z-10 min-h-screen pt-16">
         {/* Header */}
         <header className="px-8 md:px-16 lg:px-24 py-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <Link
+          {/* <Link
             href="/"
             className="inline-flex items-center gap-2 text-cyan-300/80 hover:text-cyan-200 transition-colors group"
           >
@@ -604,7 +604,7 @@ export default function TrackerPage() {
             <span className="text-sm font-[family-name:var(--font-ibm-plex-mono)]">
               Back to Home
             </span>
-          </Link>
+          </Link> */}
 
           {/* Filter by medication */}
           <div className="flex items-center gap-3">
