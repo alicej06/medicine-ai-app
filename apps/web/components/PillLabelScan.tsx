@@ -30,29 +30,41 @@ export default function PillLabelScan({ onApply }: PillLabelScanProps) {
     setParsed(null);
 
     try {
-      // Step 1: OCR
-      const { data } = await Tesseract.recognize(file, "eng", {
-        logger: (m) => {
-          if (m.status === "recognizing text" && m.progress != null) {
-            setProgress(Math.round(m.progress * 100));
-          }
-        },
-      });
+      // 1) Preprocess image → canvas
+    const canvas = await preprocessImage(file);
 
-      const text = data.text || "";
-      setRawText(text);
+    // 2) Tesseract OCR on the preprocessed canvas
+    const { data } = await Tesseract.recognize(canvas, "eng", {
+      logger: (m: { status: string; progress: number | null; }) => {
+        if (m.status === "recognizing text" && m.progress != null) {
+          setProgress(Math.round(m.progress * 100));
+        }
+      },
+      // Optional configs:
+      tessedit_char_whitelist:
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/., mgMG",
+      // You can also experiment with different psm (page segmentation mode)
+      // 6 = Assume a single uniform block of text
+      // 4 = Assume a single column
+      // psm: 6,
+    } as any);
 
-      // Step 2: AI parse
-      const result = await parsePillLabel(text);
-      setParsed(result);
-    } catch (err: any) {
-      console.error("Pill label scan error:", err);
-      setError("We couldn't read this image. Please try another photo.");
-    } finally {
-      setIsScanning(false);
-      // reset file input so user can re-upload same file if they want
-      e.target.value = "";
-    }
+    const text = data.text || "";
+    setRawText(text);
+
+    const result = await parsePillLabel(text);
+    setParsed(result);
+  } catch (err: any) {
+    console.error("Pill label scan error:", err);
+    setError(
+      err?.message
+        ? `Scan error: ${err.message}`
+        : "We couldn't read this image. Please try another photo."
+    );
+  } finally {
+    setIsScanning(false);
+    e.target.value = "";
+  }
   };
 
   const confidencePercent = parsed?.confidence != null
@@ -64,6 +76,58 @@ export default function PillLabelScan({ onApply }: PillLabelScanProps) {
       onApply(parsed);
     }
   };
+
+  async function preprocessImage(file: File): Promise<HTMLCanvasElement> {
+  const img = new Image();
+  img.src = URL.createObjectURL(file);
+
+  await new Promise<void>((resolve, reject) => {
+    img.onload = () => resolve();
+    img.onerror = (e) => reject(e);
+  });
+
+  const maxWidth = 1200; // or 1000–1500
+  const scale = img.width > maxWidth ? maxWidth / img.width : 1;
+  const width = img.width * scale;
+  const height = img.height * scale;
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return canvas;
+
+  // Draw scaled image
+  ctx.drawImage(img, 0, 0, width, height);
+
+  // Get pixel data and convert to grayscale + simple contrast bump
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+
+  // contrast factor: 0 = none, 1 = strong
+  const contrast = 0.3;
+  const factor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
+
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+
+    // grayscale
+    let gray = 0.299 * r + 0.587 * g + 0.114 * b;
+
+    // contrast
+    gray = factor * (gray - 128) + 128;
+    gray = Math.max(0, Math.min(255, gray));
+
+    data[i] = data[i + 1] = data[i + 2] = gray;
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  return canvas;
+}
+
 
   return (
     <div className="mt-4 p-4 bg-[#0B1127]/80 border border-cyan-400/30 rounded-lg">

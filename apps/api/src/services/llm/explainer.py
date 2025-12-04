@@ -3,11 +3,12 @@ import os, json, re
 from typing import List, Dict
 import logging
 from ..retrieval.retrieve import retrieve_with_citations
+from src.core.config import settings
 logger = logging.getLogger(__name__)
 
 LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").lower()
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")  # default to 2.5
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "") or settings.gemini_api_key
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash") or settings.gemini_model
 HF_MODEL = os.getenv("HF_MODEL", "mistralai/Mistral-7B-Instruct-v0.2")
 
 SYSTEM = """You are a medical explanation assistant for consumers.

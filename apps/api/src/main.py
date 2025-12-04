@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from src.routers import health, drug, explain, interactions, auth, medications, med_overview
+from src.routers import health, drug, explain, interactions, auth, medications, med_overview, pill_label
 from fastapi.middleware.cors import CORSMiddleware
 
 # these modules live in src/routers/
@@ -7,16 +7,13 @@ from src.routers.drugs import router as drugs_router  # <-- new line
 
 app = FastAPI()
 
-# include existing routers
 app.include_router(health.router)
 app.include_router(drug.router)
 app.include_router(explain.router)
 app.include_router(interactions.router)
-
-# include the new /drugs/search router
+app.include_router(pill_label.router)  
 app.include_router(drugs_router)
 
-# CORS for your Next.js app
 app.include_router(auth.router)
 app.include_router(medications.router)
 app.include_router(med_overview.router)

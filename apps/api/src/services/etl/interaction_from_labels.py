@@ -8,15 +8,14 @@ from sqlalchemy.orm import Session
 
 from src.db.session import SessionLocal
 from src.db.models import LabelChunk, InteractionRule
+from src.core.config import settings
 
-# OPTIONAL: if you're actually using Gemini via google-generativeai
-# pip install google-generativeai
 try:
     import google.generativeai as genai
 
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if GEMINI_API_KEY:
-        genai.configure(api_key=GEMINI_API_KEY)
+    if GEMINI_API_KEY or settings.gemini_api_key:
+        genai.configure(api_key=GEMINI_API_KEY or settings.gemini_api_key)
         GEMINI_MODEL = genai.GenerativeModel("gemini-2.5-flash")  # or your chosen model
     else:
         GEMINI_MODEL = None

@@ -3,15 +3,19 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..db.session import get_db  # not strictly needed but consistent style
+from ..db.session import get_db
 from ..schemas.pill_label import (
     PillLabelParseRequest,
     PillLabelParseResponse,
 )
 from ..services.llm.pill_parser import parse_pill_label_with_llm
-from ..core.deps import get_current_user  # if you want this protected
+# If you want this protected later, you can add get_current_user, but REMOVE it for now:
+# from ..core.deps import get_current_user
 
-router = APIRouter(prefix="/ai", tags=["ai"])
+router = APIRouter(
+    prefix="/ai",
+    tags=["ai"],
+)
 
 
 @router.post(
@@ -21,7 +25,7 @@ router = APIRouter(prefix="/ai", tags=["ai"])
 def parse_pill_label(
     payload: PillLabelParseRequest,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),  # remove if you want it public
+    # current_user=Depends(get_current_user),  # leave this OUT for now
 ) -> PillLabelParseResponse:
     """
     Parse OCR text from a pill bottle label into structured fields.
