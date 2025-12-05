@@ -79,62 +79,50 @@ export async function searchDrugs(
 }
 
 export async function getDrugById(rxCui: string): Promise<Drug> {
-  try {
-    // Try method 1: Direct endpoint (if exists)
+  const paths = [`/drug/${rxCui}`, `/drugs/${rxCui}`];
+
+  for (const path of paths) {
     try {
-      const res = await fetch(`${API_BASE}/drug/${rxCui}`);
-      if (res.ok) {
-        return await res.json();
+      const data: any = await api(path);
+
+      if (!data) continue;
+
+      // If backend returns { drug: {...} }
+      if (data.drug) {
+        return data.drug as Drug;
       }
-    } catch (_e) {
-      // Fall through to method 2
+
+      // If backend returns a single object
+      if (!Array.isArray(data) && typeof data === "object") {
+        return data as Drug;
+      }
+
+      // If backend returns an array
+      if (Array.isArray(data)) {
+        if (data.length === 0) continue;
+        return data[0] as Drug;
+      }
+    } catch (err: any) {
+      // If this path 404s, try the next one; otherwise rethrow
+      if (err?.status === 404) continue;
+      throw err;
     }
-
-    // Method 2: Search with exact CUI
-    const res = await fetch(`${API_BASE}/drug?query=${rxCui}&limit=1`);
-
-    if (!res.ok) {
-      throw new Error(`Drug not found: ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    // Extract first result
-    if (Array.isArray(data)) {
-      if (data.length === 0) throw new Error("Drug not found");
-      return data[0];
-    }
-
-    if (data.drugs && data.drugs.length > 0) {
-      return data.drugs[0];
-    }
-
-    throw new Error("Drug not found");
-  } catch (error) {
-    console.error("Get drug error:", error);
-    throw error;
   }
+
+  // Final fallback: search by rxCui
+  const searchResult = await searchDrugs(rxCui, 1, 0);
+  if (!searchResult.drugs || searchResult.drugs.length === 0) {
+    throw new Error("Drug not found");
+  }
+  return searchResult.drugs[0];
 }
 
+
 export async function getExplanation(drugId: string): Promise<Explanation> {
-  try {
-    const res = await fetch(`${API_BASE}/explain`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ drugId }),
-    });
-
-    if (!res.ok) {
-      throw new Error(`Explanation failed: ${res.status}`);
-    }
-
-    return await res.json();
-  } catch (error) {
-    console.error("Explanation error:", error);
-    throw error;
-  }
+  return api("/explain", {
+    method: "POST",
+    body: JSON.stringify({ drugId }),
+  }) as Promise<Explanation>;
 }
 
 
@@ -205,23 +193,9 @@ export interface MedListOverview {
 }
 
 export async function getMedListOverview(): Promise<MedListOverview> {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/me/medications/overview`,
-    {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${localStorage.getItem("token") || ""}`,
-      },
-    }
-  );
-
-  if (!res.ok) {
-    throw new Error(`Med list overview failed: ${res.status}`);
-  }
-
-  return res.json();
+  return api("/me/medications/overview") as Promise<MedListOverview>;
 }
+
 
 export interface ParsedPillLabel {
   drugName: string | null;
@@ -232,27 +206,12 @@ export interface ParsedPillLabel {
   confidence: number | null;
 }
 
-function getAuthHeaders(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = localStorage.getItem("token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
-
-
-export async function parsePillLabel(ocrText: string): Promise<ParsedPillLabel> {
-  const res = await fetch(`${API_BASE}/ai/parse-pill-label`, {
+export async function parsePillLabel(
+  ocrText: string
+): Promise<ParsedPillLabel> {
+  return api("/ai/parse-pill-label", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
     body: JSON.stringify({ ocrText }),
-  });
-
-  if (!res.ok) {
-    throw new Error(`parsePillLabel failed: ${res.status}`);
-  }
-
-  return res.json();
+  }) as Promise<ParsedPillLabel>;
 }

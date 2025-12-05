@@ -14,10 +14,20 @@ export interface SearchResponse {
   total: number;
 }
 
+export interface Citation {
+  id: number;
+  rx_cui?: string | null;
+  section?: string | null;
+  source_url?: string | null;
+  snippet: string;
+  used?: boolean;
+}
+
 export interface Explanation {
-  purpose: string;
-  mechanism: string;
-  warnings: string[];
-  side_effects: string[];
-  sources?: string[];
+  drugId: string;
+  question?: string | null;
+  summary: string[];              
+  citations: Citation[];
+  usedCitationIds?: number[];
+  disclaimer: string;
 }

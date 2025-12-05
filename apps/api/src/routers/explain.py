@@ -1,13 +1,18 @@
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 from sqlalchemy.exc import SQLAlchemyError
+import logging
+
 from src.schemas.explain import ExplainRequest, ExplainResponse, Citation
 from src.services.retrieval.retrieve import retrieve_with_citations
 from src.services.llm.explainer import explain_with_llm
 from src.core.cache import get_cached, set_cached
 from src.core.config import settings
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/explain", tags=["Explain"])
+
 
 @router.post("", response_model=ExplainResponse)
 def explain(payload: ExplainRequest):
@@ -31,13 +36,15 @@ def explain(payload: ExplainRequest):
             retrieved = retrieve_with_citations(retrieval_query, k=4)
             citations = retrieved.get("citations", [])
         except SQLAlchemyError as e:
-            # Database down or misconfigured: return JSON error, not a 500 text
+            # Log the real DB error and surface it to the client for debugging
+            logger.exception("DB error in retrieve_with_citations: %s", e)
+            msg = f"Database error: {type(e).__name__}: {e}"
             resp = ExplainResponse(
                 drugId=drug_id,
                 question=q or None,
                 summary=[
-                    "Our database isn’t reachable or the table is missing.",
-                    "Please ensure Postgres is running and chunks are loaded."
+                    msg,
+                    "Check that the label_chunk table exists and pgvector is configured."
                 ],
                 citations=[],
             ).model_dump()
@@ -45,6 +52,7 @@ def explain(payload: ExplainRequest):
             return JSONResponse(resp, status_code=200)
 
         if not citations:
+            # No DB error; just no chunks found
             resp = ExplainResponse(
                 drugId=drug_id,
                 question=q or None,
@@ -75,6 +83,7 @@ def explain(payload: ExplainRequest):
         raise
     except Exception as e:
         # LAST RESORT: always JSON
+        logger.exception("Unhandled error in /explain: %s", e)
         return JSONResponse(
             {
                 "drugId": payload.drugId if payload else None,
