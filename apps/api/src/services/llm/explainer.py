@@ -297,7 +297,6 @@ def explain_med_list_with_llm(
       "used_citation_ids": [int, ...]
     }
     """
-    from ..core.config import settings
     from google import generativeai as genai  # assuming you're already using this
 
     context_text = build_med_list_context(medications, citations)
@@ -318,9 +317,9 @@ Remember: Output MUST be valid JSON and match the schema in the instructions.
 """
 
     # Configure Gemini client (same pattern as explain_with_llm)
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+    genai.configure(api_key=settings.gemini_api_key or GEMINI_API_KEY)
     model = genai.GenerativeModel(
-        model_name=settings.GEMINI_MODEL,
+        model_name=settings.gemini_model or GEMINI_MODEL,
         system_instruction=SYSTEM_MED_LIST,
         generation_config={"response_mime_type": "application/json"},
     )
